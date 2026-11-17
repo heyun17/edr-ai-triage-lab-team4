@@ -11,7 +11,7 @@
 | `get_process_tree(host, pid)` | 🔍 진승호 | `host`, `pid` | `process`, `ancestors`, `children` (각 이벤트에 `event_id`) | 부모 최대 5단계, 자식 50건 (제안·협의 필요) | 기록 없음: `process=None`, 목록은 빈 배열 |
 | `get_process_activity(host, pid)` | 🔍 진승호 | `host`, `pid` | `events` (각 이벤트에 `event_id`) | 최대 50건 | 기록 없음: `events=[]` |
 | `get_host_timeline(host, around_ts, minutes)` | 🔍 진승호 | `host`, `around_ts`, `minutes` | `events`, `from`, `to`, `truncated` (각 이벤트에 `event_id`) | 최대 100건 | 기록 없음: `events=[]` |
-| `search_playbook(query, k)` | 📘 박혜윤 | `query`, `k` | `text`, `source`(파일 이름), `page`, `score`, `category` | `k`건 (기본 3건, 최대 허용 건수 협의 필요) | 검색 결과 없음: `[]` |
+| `search_playbook(query, k)` | 📘 박혜윤 | `query`, `k` | `text`, `source`(파일 이름), `page`, `score`, `category` | 최대 3건 | 검색 결과 없음: `[]` |
 
 > **확인:** 자식 프로세스 50건, 문서 검색 최대 허용 건수, 실패 처리 규칙은 두 사람이 합의해 확정합니다. 아래 '실패하면'은 **조회 결과가 없을 때**의 제안이며, OpenSearch 연결 실패 같은 시스템 오류는 별도로 구분해 처리해야 합니다.
 
