@@ -58,7 +58,7 @@ def search_playbook(query: str, k: int = 3) -> list[dict]:
         {"source": "01_response_policy_tables.pdf", "page": 2, "category": "NarrativeText", "score": 0.80,
          "text": "악성(malicious) 판정에는 서로 독립적인 근거 이벤트가 두 개 이상 필요하다."},
     ]
-    return rows[:k]
+    return rows[:min(k, 3)]
 
 
 TELEMETRY_TOOLS = [tool(get_process_tree), tool(get_process_activity), tool(get_host_timeline)]
