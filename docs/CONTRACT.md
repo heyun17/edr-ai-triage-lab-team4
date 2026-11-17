@@ -2,16 +2,18 @@
 
 > 1일차에 함께 정합니다. **혼자 바꾸지 않습니다.** 바꾸려면 상대에게 먼저 말하고, 이 표와 `src/soc/mocks.py`를 같이 고친 뒤 변경 이력에 적습니다.
 
-🔍 기록 담당: ______  📘 문서 담당: ______  (둘 다 이름을 적으면 계약 성립)
+🔍 기록 담당: 진승호  📘 문서 담당: 박혜윤  (계약 내용은 두 사람의 확인 후 확정)
 
 ## 도구 목록
 
 | 도구 | 만드는 사람 | 입력 | 출력 (꼭 있어야 하는 칸) | 결과 개수 상한 | 실패하면 |
 |---|---|---|---|---|---|
-| `get_process_tree(host, pid)` | 🔍 | | `event_id`, … | | |
-| `get_process_activity(host, pid)` | 🔍 | | `event_id`, … | | |
-| `get_host_timeline(host, around_ts, minutes)` | 🔍 | | `event_id`, … | | |
-| `search_playbook(query, k)` | 📘 | | `text`, `source`(파일 이름), `page`, … | | |
+| `get_process_tree(host, pid)` | 🔍 진승호 | `host`, `pid` | `process`, `ancestors`, `children` (각 이벤트에 `event_id`) | 부모 최대 5단계, 자식 50건 (제안·협의 필요) | 기록 없음: `process=None`, 목록은 빈 배열 |
+| `get_process_activity(host, pid)` | 🔍 진승호 | `host`, `pid` | `events` (각 이벤트에 `event_id`) | 최대 50건 | 기록 없음: `events=[]` |
+| `get_host_timeline(host, around_ts, minutes)` | 🔍 진승호 | `host`, `around_ts`, `minutes` | `events`, `from`, `to`, `truncated` (각 이벤트에 `event_id`) | 최대 100건 | 기록 없음: `events=[]` |
+| `search_playbook(query, k)` | 📘 박혜윤 | `query`, `k` | `text`, `source`(파일 이름), `page`, `score`, `category` | `k`건 (기본 3건, 최대 허용 건수 협의 필요) | 검색 결과 없음: `[]` |
+
+> **확인 필요:** 자식 프로세스 50건, 문서 검색 최대 허용 건수, 실패 처리 규칙은 두 사람이 합의해 확정합니다. 아래 '실패하면'은 **조회 결과가 없을 때**의 제안이며, OpenSearch 연결 실패 같은 시스템 오류는 별도로 구분해 처리해야 합니다.
 
 ## 꼭 합의할 것
 - 🔍 텔레메트리 도구의 모든 결과에는 **`event_id`**가 있다. → 가드레일이 판정 근거를 추적하는 데 씁니다 (2일차 `G-1`).
@@ -21,3 +23,4 @@
 
 | 바꾼 것 | 이유 | 둘 다 동의 |
 |---|---|---|
+| 도구별 입력·출력·개수 상한·결과 없음 처리 초안 작성 | DAY1 도구 개발 전 계약 형식 정리 | 합의 전 (두 담당자 확인 필요) |
