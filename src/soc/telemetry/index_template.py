@@ -22,16 +22,41 @@ TEMPLATE_NAME = "edr-events"
 
 def build_template() -> dict:
     """edr-events-* 인덱스에 적용할 템플릿."""
-    # TODO[REC-1]: 매핑을 채웁니다. 검색·필터에 쓰는 칸(host, type, process.name 등)은 keyword,
-    # 시간은 date, pid·ppid·포트·바이트는 long, IP는 ip, 명령줄과 스크립트는 text와 keyword 둘 다(fields 사용).
-    # 왜 text와 keyword를 나누는지 DECISIONS.md에 한 줄로 적으세요. (03 문서 1장의 질문)
     properties: dict = {
-        # 예: "host": {"type": "keyword"},
+        "event_id": {"type": "keyword"},
+        "ts": {"type": "date"},
+        "host": {"type": "keyword"},
+        "type": {"type": "keyword"},
+        "process": {"properties": {
+            "pid": {"type": "long"},
+            "ppid": {"type": "long"},
+            "name": {"type": "keyword"},
+            "parent_name": {"type": "keyword"},
+            "user": {"type": "keyword"},
+            "signed": {"type": "boolean"},
+            "cmdline": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 8191}}},
+        }},
+        "network": {"properties": {
+            "dst_ip": {"type": "ip"},
+            "dst_port": {"type": "long"},
+            "proto": {"type": "keyword"},
+            "bytes_out": {"type": "long"},
+        }},
+        "file": {"properties": {
+            "path": {"type": "keyword"},
+            "action": {"type": "keyword"},
+            "new_path": {"type": "keyword"},
+        }},
+        "registry": {"properties": {
+            "key": {"type": "keyword"},
+            "value": {"type": "keyword"},
+        }},
+        "script_text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 8191}}},
     }
     return {
         "index_patterns": [f"{settings.index_events}-*"],
         "template": {
-            "settings": {"number_of_shards": 1, "number_of_replicas": 0},   # 노드가 1개라 복제본 0 (2-5 깨 보기)
+            "settings": {"number_of_shards": 1, "number_of_replicas": 0},
             "mappings": {"dynamic": "strict", "properties": properties},
         },
     }
