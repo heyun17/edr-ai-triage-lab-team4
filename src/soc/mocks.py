@@ -8,6 +8,15 @@
 
 가짜는 어떤 질문을 받아도 01 문서의 예시 알림(WS-007, LSASS 덤프) 이야기를 돌려줍니다.
 돌려주는 모양(키 이름, event_id, source)이 진짜와 같아야 나중에 바꿔 끼울 수 있습니다.
+
+DAY1 팀 합의 계약(docs/CONTRACT.md)에서 확인할 반환 형식:
+- get_process_tree: host, pid, process, ancestors, children (이벤트마다 event_id)
+- get_process_activity: host, pid, events (이벤트마다 event_id)
+- get_host_timeline: host, from, to, events, truncated (이벤트마다 event_id)
+- search_playbook: text, source, page, score, category (기본 k=3개)
+
+이 파일은 고정 예시를 돌려주는 mock입니다. 실제 검색 범위·개수 제한이나
+'기록 없음/연결 오류' 처리는 진짜 도구에서 별도로 구현하고 검증합니다.
 """
 from __future__ import annotations
 
