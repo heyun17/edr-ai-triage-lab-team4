@@ -1,14 +1,16 @@
-# Python
+.env
+.venv/
 __pycache__/
 *.pyc
-.venv/
+data/sim.jsonl
+data/sim_labels.jsonl
+data/eval/
+dist/
+.pytest_cache/
+
+# Local development
 venv/
-
-# Environment / secrets
-.env
 .env.*
-
-# VS Code
 .vscode/
 
 # OS
