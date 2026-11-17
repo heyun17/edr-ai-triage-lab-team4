@@ -23,11 +23,11 @@
 - 프로세스 실행 관계를 조사할 때 PID뿐 아니라 PPID와 host도 함께 확인해야 한다.
 
 
-### 조사 도구 검증 (D1-10~11)
+### 조사 도구 구현·검증 (D1-9~10, 추가 실습)
 
 - **D1-9 구현 확인:** `get_process_tree`, `get_process_activity`, `get_host_timeline` 3개 구현; `pytest tests/test_telemetry_tools.py -q` 실행 결과 **8 passed**.
 - **D1-10 고장 예상표 검증:** 서로 다른 PC에서 PID가 같을 때 `host`와 `pid`를 함께 조회하므로 결과가 섞이지 않음 (`test_process_tree_does_not_mix_hosts` 통과). 상위 부모 프로세스 기록이 없으면 중단하지 않고 안내 문구를 반환하는 것도 확인.
-- **D1-11 실제 조사 대상:** `WS-006`, PID `51765` (`rundll32.exe`), 기준 시각 `2026-11-16T09:41:43Z`.
+- **추가 실습으로 조회한 조사 대상:** `WS-006`, PID `51765` (`rundll32.exe`), 기준 시각 `2026-11-16T09:41:43Z`.
 - **프로세스 트리:** 부모 `cmd.exe` (PID `37467`, `evt-00003002`) → `rundll32.exe` (`evt-00003003`); 더 위의 PID `1653` 생성 기록은 없어 `note`로 알림.
 - **프로세스 활동:** `evt-00003004`에서 `rundll32.exe`가 `C:\Windows\Temp\d.dmp` 파일을 생성한 기록 확인.
 - **호스트 타임라인:** 기준 시각 전후 1분, 즉 `09:40:43Z~09:42:43Z` 범위로 조회. 공격 관련 세 이벤트와 다른 프로세스/통신/파일 기록을 함께 표시; `truncated=False`.
