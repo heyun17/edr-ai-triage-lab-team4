@@ -63,47 +63,90 @@ def _find_process(host: str, pid: int) -> dict | None:
 
 
 def get_process_tree(host: str, pid: int) -> dict:
-    """프로세스의 족보를 봅니다: 누가 이 프로세스를 실행했는지(부모, 조부모 …)와 이 프로세스가 실행한 자식들.
-    '누가 실행했나', '정상 프로그램이 띄운 것인가'를 확인할 때 씁니다.
-
-    Args:
-        host: PC 이름 (예: WS-007)
-        pid: 프로세스 번호 (알림의 pid)
-    """
-    # TODO[REC-2]: 부모를 최대 MAX_ANCESTORS단계까지 거슬러 올라가고, 자식(ppid == pid)도 찾습니다.
-    # 반드시 host까지 같이 조건에 넣으세요. 다른 PC에 같은 pid가 있을 수 있습니다. (02 문서 9-2 고장 예상표)
-    # 돌려줄 모양: {"host", "pid", "process": 요약 또는 None, "ancestors": [가까운 부모부터 요약], "children": [요약]}
-    # 요약은 summarize()를 쓰고, 프로세스 기록을 찾을 때는 _find_process()를 쓰면 됩니다.
-    raise NotImplementedError("TODO[REC-2]")
-
-
-def get_process_activity(host: str, pid: int) -> dict:
-    """한 프로세스가 한 일을 시간순으로 봅니다: 네트워크 연결, 파일 생성·변경, 레지스트리 변경, 실행한 스크립트.
-    '이 프로세스가 무엇을 남겼나(파일, 통신)'를 확인할 때 씁니다.
+    """지정된 PC에서 프로세스의 부모와 자식 실행 기록을 조회합니다.
 
     Args:
         host: PC 이름 (예: WS-007)
         pid: 프로세스 번호
     """
-    # TODO[REC-3]: host와 pid가 같은 기록 중 type이 network, file, registry, script인 것을 시간순으로 (최대 50건).
-    # 돌려줄 모양: {"host", "pid", "events": [summarize(e) ...]}
-    raise NotImplementedError("TODO[REC-3]")
+    process = _find_process(host, pid)
+    ancestors: list[dict] = []
+    children: list[dict] = []
+    result = {"host": host, "pid": pid, "process": summarize(process) if process else None,
+              "ancestors": ancestors, "children": children}
+    if not process:
+        return result
+
+    # 부모의 pid를 역으로 따라 올라갑니다. 같은 host만 조회해야 다른 PC 로그와 섞이지 않습니다.
+    parent_pid = process.get("process", {}).get("ppid")
+    visited = {pid}
+    for _ in range(MAX_ANCESTORS):
+        if parent_pid is None or parent_pid in visited:
+            break
+        visited.add(parent_pid)
+        parent = _find_process(host, parent_pid)
+        if not parent:
+            result["note"] = f"부모 프로세스(pid {parent_pid})의 생성 기록이 없습니다."
+            break
+        ancestors.append(summarize(parent))
+        parent_pid = parent.get("process", {}).get("ppid")
+
+    # pid가 현재 프로세스의 자식을 가리키는 생성 기록만 가져옵니다.
+    rows = _search({
+        "size": 50,
+        "sort": [{"ts": "asc"}],
+        "query": {"bool": {"filter": [
+            {"term": {"host": host}},
+            {"term": {"type": "process"}},
+            {"term": {"process.ppid": pid}},
+        ]}},
+    })
+    children.extend(summarize(e) for e in rows)
+    return result
 
 
-def get_host_timeline(host: str, around_ts: str, minutes: int = 10) -> dict:
-    """특정 시각 앞뒤로 그 PC에서 일어난 모든 일을 시간순으로 봅니다.
-    알림 직전·직후에 다른 수상한 활동(다른 프로그램, 다른 통신)이 있었는지 넓게 볼 때 씁니다.
+def get_process_activity(host: str, pid: int) -> dict:
+    """지정된 PC의 프로세스가 만든 통신, 파일, 레지스트리, 스크립트 기록을 시간순으로 조회합니다.
 
     Args:
         host: PC 이름 (예: WS-007)
-        around_ts: 기준 시각 (ISO 형식, 예: 2026-11-16T09:12:02Z). 보통 알림 시각
-        minutes: 기준 시각 앞뒤로 몇 분까지 볼지 (기본 10)
+        pid: 프로세스 번호
     """
-    # TODO[REC-4]: host가 같고 ts가 [around_ts - minutes, around_ts + minutes] 안인 기록을 시간순으로 (최대 TIMELINE_LIMIT건).
-    # 결과가 잘렸으면 truncated=True로 알려 줍니다 (LLM이 범위를 줄여 다시 부를 수 있게).
-    # 돌려줄 모양: {"host", "from", "to", "events": [summarize(e) ...], "truncated": bool}
-    raise NotImplementedError("TODO[REC-4]")
+    rows = _search({
+        "size": 50,
+        "sort": [{"ts": "asc"}],
+        "query": {"bool": {"filter": [
+            {"term": {"host": host}},
+            {"term": {"process.pid": pid}},
+            {"terms": {"type": ["network", "file", "registry", "script"]}},
+        ]}},
+    })
+    return {"host": host, "pid": pid, "events": [summarize(e) for e in rows]}
 
+
+def get_host_timeline(host: str, around_ts: str, minutes: int = 10) -> dict:
+    """지정된 PC에서 특정 시각 전후에 발생한 모든 기록을 시간순으로 조회합니다.
+
+    Args:
+        host: PC 이름 (예: WS-007)
+        around_ts: 기준 시각 (ISO 형식, 예: 2026-11-16T09:12:02Z)
+        minutes: 기준 시각 앞뒤로 조사할 분 단위 범위
+    """
+    center = _parse_ts(around_ts)
+    start = _iso(center - timedelta(minutes=minutes))
+    end = _iso(center + timedelta(minutes=minutes))
+    # 1건 더 조회해서 제한을 넘겼는지 판단합니다.
+    rows = _search({
+        "size": TIMELINE_LIMIT + 1,
+        "sort": [{"ts": "asc"}],
+        "query": {"bool": {"filter": [
+            {"term": {"host": host}},
+            {"range": {"ts": {"gte": start, "lte": end}}},
+        ]}},
+    })
+    return {"host": host, "from": start, "to": end,
+            "events": [summarize(e) for e in rows[:TIMELINE_LIMIT]],
+            "truncated": len(rows) > TIMELINE_LIMIT}
 
 
 
