@@ -2,6 +2,14 @@
 
 > 2일차 인프라 2단계를 시작하기 전에 계산합니다. 2단계 운전자(🔍 기록 담당)가 주도하고, 📘 문서 담당이 검토합니다.
 
+## 서버 실측 (인프라 1단계, 2026-11-17)
+
+- 서버: `edr-team4` (Ubuntu 24.04, 가비아)
+- `nproc`: **4** (CPU 4 vCore)
+- `free -h`: **Mem total 15Gi**, used **470Mi**, free **14Gi**, available **15Gi**
+- `free -h`: **Swap total 0B** (스왑 미설정)
+- 위 값은 서버 SSH 접속 직후 실측한 값입니다. 아래 워크로드별 requests/limits는 인프라 2단계에서 산정합니다.
+
 | 워크로드 | 종류 | CPU req | Mem req / limit | 힙 | 근거 |
 |---|---|---|---|---|---|
 | OS + k3s + Traefik | - | | | - | 실측: `free -h`, `kubectl top` |
