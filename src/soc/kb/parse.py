@@ -25,7 +25,12 @@ def parse_pdf(path: str | Path, strategy: str | None = None) -> list:
     strategy = strategy or settings.parse_strategy
     # TODO[DOC-1]: partition()을 호출합니다. 파싱 방법은 strategy 변수로 받고,
     # 언어는 한국어와 영어(languages), 표 구조 추출(infer_table_structure)을 켭니다.
-    raise NotImplementedError("TODO[DOC-1]")
+    return partition(
+        filename=str(path),
+        strategy=strategy,
+        languages=["kor", "eng"],
+        infer_table_structure=True,
+    )
 
 
 def drop_header_footer(elements: list) -> list:
