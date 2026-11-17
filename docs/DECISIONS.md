@@ -30,7 +30,21 @@
 
 ### 파싱 관찰 (1일차): PDF 9종
 | 파일 | 요소 수 | 깨진 것 | 고른 파싱 방법 | 이유 |
-|---|---|---|---|---|
+|---|---:|---|---|---|
+| 01_response_policy_tables.pdf | 78 | 표 셀이 여러 요소로 흩어짐 (Title 50) | fast로 관찰 | 기본 파싱 결과를 먼저 확인 |
+| 02_playbook_credential_dump.pdf | 21 | 눈에 띄는 파싱 문제 없음 | fast로 관찰 | 기준 문서로 사용 |
+| 03_playbook_ransomware_header_footer.pdf | 31 | Header 4, Footer 2가 본문과 함께 추출됨 | fast로 관찰 | 반복 머리말·꼬리말 필터 필요 여부 확인 |
+| 04_playbook_macro_powershell_code.pdf | 41 | 코드/체크리스트 일부가 Title 등으로 분류될 수 있음 | fast로 관찰 | 요소 category 신뢰성 확인 필요 |
+| 05_newsletter_two_column.pdf | 43 | 2단 레이아웃의 읽기 순서 확인 필요 | fast로 관찰 | 요소 수만으로 읽기 순서는 판단 불가 |
+| 06_false_positive_guide_scanned.pdf | 0 | 텍스트를 전혀 추출하지 못함 | fast로 관찰 | 스캔본이라 텍스트 레이어가 없음 |
+| 07_weekly_report_chart.pdf | 34 | 차트 이미지 속 숫자는 텍스트로 추출되지 않을 수 있음 | fast로 관찰 | 이미지 정보 색인 여부 결정 필요 |
+| 08_analyst_notes_attack_en.pdf | 22 | 영어 텍스트는 정상적으로 추출됨 | fast로 관찰 | 한국어 질의-영어 문서 검색은 이후 평가 |
+| 09_response_matrix_complex_tables.pdf | 237 | 표가 Title 128, UncategorizedText 64 등 많은 조각으로 분해됨 | fast로 관찰 | 행·열 관계가 유지되지 않는지 추가 확인 필요 |
+
+#### 고장 예상표 확인 (03·06·09)
+- **03:** 판단 보류. 사전 예상은 "청크를 잘못 나눔"이었지만, 현재 단계는 파싱 관찰이라 아직 청킹 결과를 확인하지 않았다. 다만 Header 4, Footer 2가 추출되는 별도 문제는 확인했다.
+- **06:** 예상과 일치. 이미지로 된 스캔 PDF라 fast 파싱 결과가 **0개 요소**였다.
+- **09:** 부분적으로 일치. "표를 잘못 읽는다"는 예상대로 요소가 237개로 쪼개지고 Title 128개가 생겼다. 다만 사전 예상의 원인인 "마지막 페이지가 가로 방향이라 표 크기가 다름"이 직접 원인인지는 아직 확인하지 않았다.
 
 ### 청킹 값 (1일차) + 🔍 교차 실험 (2일차)
 | max_characters | 청크 수 | Recall@3 | 관찰 | 실험한 사람 |
