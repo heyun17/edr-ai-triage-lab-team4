@@ -13,6 +13,7 @@ DAY1 팀 합의 계약(docs/CONTRACT.md)에서 확인할 반환 형식:
 - get_process_tree: host, pid, process, ancestors, children (이벤트마다 event_id)
 - get_process_activity: host, pid, events (이벤트마다 event_id)
 - get_host_timeline: host, from, to, events, truncated (이벤트마다 event_id)
+- get_network_connections: host, from, to, connections (요약 안 events에 event_id)
 - search_playbook: text, source, page, score, category (기본 k=3개)
 
 이 파일은 고정 예시를 돌려주는 mock입니다. 실제 검색 범위·개수 제한이나
@@ -48,6 +49,35 @@ def get_host_timeline(host: str, around_ts: str, minutes: int = 10) -> dict:
     return {"host": host, "from": around_ts, "to": around_ts, "events": [_CMDEXE, _RUNDLL, _DMP], "truncated": False}
 
 
+def get_network_connections(host: str, minutes: int = 10) -> dict:
+    """[가짜] 최근 외부 통신을 목적지 IP별로 묶어 연결 횟수와 간격을 요약합니다."""
+    return {
+        "host": host,
+        "minutes": minutes,
+        "from": "2026-11-16T09:02:02Z",
+        "to": "2026-11-16T09:12:02Z",
+        "connections": [
+            {
+                "dst_ip": "203.0.113.40",
+                "count": 3,
+                "first_ts": "2026-11-16T09:05:02Z",
+                "last_ts": "2026-11-16T09:07:02Z",
+                "intervals_seconds": [60.0, 60.0],
+                "avg_interval_seconds": 60.0,
+                "dst_ports": [443],
+                "protocols": ["tcp"],
+                "bytes_out_total": 12000,
+                "events": [
+                    {"event_id": "evt-net-0001", "ts": "2026-11-16T09:05:02Z"},
+                    {"event_id": "evt-net-0002", "ts": "2026-11-16T09:06:02Z"},
+                    {"event_id": "evt-net-0003", "ts": "2026-11-16T09:07:02Z"},
+                ],
+            }
+        ],
+        "truncated": False,
+    }
+
+
 def search_playbook(query: str, k: int = 3) -> list[dict]:
     """[가짜] 질문과 관련된 플레이북·정책 조각. 결과마다 source(파일 이름)가 있습니다."""
     rows = [
@@ -61,5 +91,5 @@ def search_playbook(query: str, k: int = 3) -> list[dict]:
     return rows[:min(k, 3)]
 
 
-TELEMETRY_TOOLS = [tool(get_process_tree), tool(get_process_activity), tool(get_host_timeline)]
+TELEMETRY_TOOLS = [tool(get_process_tree), tool(get_process_activity), tool(get_host_timeline), tool(get_network_connections)]
 KB_TOOLS = [tool(search_playbook)]
