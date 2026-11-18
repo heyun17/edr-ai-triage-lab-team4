@@ -109,6 +109,30 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 - 정상 설정 복구와 서비스 정상 작동을 확인했다.
 - 필수 장애 증상 재현 및 진단은 아직 완료하지 않았다.
 
+
+#### 장애 실습 2-1 추가 검증 (2026-11-18)
+
+**실행**
+1. vm.max_map_count를 65530으로 변경
+2. OpenSearch 파드 삭제 및 자동 재생성
+3. 파드 상태와 로그 확인
+4. vm.max_map_count를 262144로 복구
+5. 파드 재생성 후 StatefulSet 정상 확인
+
+**실제 결과**
+- 설정값 65530 변경 성공
+- OpenSearch가 1/1 Running으로 실행됨
+- 로그에서 커널 설정 관련 오류를 발견하지 못함
+- 설정을 262144로 복구함
+- StatefulSet 1/1 정상 복구 확인
+
+**결론**
+- 교안에서 예상한 CrashLoopBackOff 장애는 재현되지 않았다.
+- 커널 설정 복구와 서비스 정상화는 검증했다.
+- 장애가 발생하지 않은 정확한 원인은 추가 조사가 필요하다.
+- 팀원과의 진단 후 나눔은 미진행이다.
+
+
 #### 5. 재발 방지
 - OpenSearch 배포 전 vm.max_map_count 확인
 - PVC 상태와 OpenSearch 로그 확인
