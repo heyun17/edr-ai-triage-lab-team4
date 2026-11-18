@@ -74,6 +74,24 @@ def test_host_timeline_window():
     assert wide["truncated"] is False
 
 
+def test_network_connections_groups_by_destination():
+    r = tools.get_network_connections("WS-002", minutes=5)
+
+    assert r["host"] == "WS-002"
+    assert r["from"] == "2026-11-16T09:00:02.500000Z"
+    assert r["to"] == "2026-11-16T09:05:02.500000Z"
+    assert r["truncated"] is False
+
+    by_ip = {row["dst_ip"]: row for row in r["connections"]}
+
+    assert by_ip["203.0.113.11"]["count"] == 1
+    assert by_ip["203.0.113.11"]["intervals_seconds"] == []
+    assert by_ip["203.0.113.11"]["events"][0]["event_id"] == "evt-00000004"
+
+    assert by_ip["203.0.113.40"]["count"] == 1
+    assert by_ip["203.0.113.40"]["events"][0]["event_id"] == "evt-00000021"
+
+
 def test_results_are_summarized_with_event_id():
     r = tools.get_host_timeline("WS-002", "2026-11-16T09:05:00Z", minutes=10)
     assert r["events"], "WS-002의 기록이 하나도 없습니다"
