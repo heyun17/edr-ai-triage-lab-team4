@@ -21,6 +21,7 @@ EVENTS = f"{settings.index_events}-*"
 CMD_MAX = 120           # 명령줄 요약 길이
 MAX_ANCESTORS = 5
 TIMELINE_LIMIT = 100
+NETWORK_LIMIT = 500
 
 
 def _search(body: dict) -> list[dict]:
@@ -150,4 +151,118 @@ def get_host_timeline(host: str, around_ts: str, minutes: int = 10) -> dict:
 
 
 
-TELEMETRY_TOOLS = [tool(get_process_tree), tool(get_process_activity), tool(get_host_timeline)]
+
+def get_network_connections(host: str, minutes: int = 10) -> dict:
+    """지정된 PC의 최근 네트워크 연결을 목적지 IP별로 묶어 횟수와 연결 간격을 요약합니다.
+
+    반복적인 외부 통신(예: 일정한 주기의 비콘)이 의심될 때 사용합니다.
+    해당 호스트의 가장 최근 네트워크 이벤트를 기준으로 직전 minutes분을 조사합니다.
+
+    Args:
+        host: PC 이름 (예: WS-002)
+        minutes: 가장 최근 네트워크 이벤트부터 과거로 조사할 분 단위 범위
+    """
+    latest = _search({
+        "size": 1,
+        "sort": [{"ts": "desc"}],
+        "query": {"bool": {"filter": [
+            {"term": {"host": host}},
+            {"term": {"type": "network"}},
+        ]}},
+    })
+
+    if not latest:
+        return {
+            "host": host,
+            "minutes": minutes,
+            "from": None,
+            "to": None,
+            "connections": [],
+            "truncated": False,
+        }
+
+    end_dt = _parse_ts(latest[0]["ts"])
+    start = _iso(end_dt - timedelta(minutes=minutes))
+    end = _iso(end_dt)
+
+    rows = _search({
+        "size": NETWORK_LIMIT + 1,
+        "sort": [{"ts": "asc"}],
+        "query": {"bool": {"filter": [
+            {"term": {"host": host}},
+            {"term": {"type": "network"}},
+            {"range": {"ts": {"gte": start, "lte": end}}},
+        ]}},
+    })
+
+    truncated = len(rows) > NETWORK_LIMIT
+    rows = rows[:NETWORK_LIMIT]
+
+    grouped: dict[str, list[dict]] = {}
+    for event in rows:
+        network = event.get("network") or {}
+        dst_ip = network.get("dst_ip")
+        if dst_ip:
+            grouped.setdefault(dst_ip, []).append(event)
+
+    connections = []
+    for dst_ip, events in grouped.items():
+        times = [_parse_ts(event["ts"]) for event in events]
+        intervals = [
+            round((times[i] - times[i - 1]).total_seconds(), 3)
+            for i in range(1, len(times))
+        ]
+        ports = sorted({
+            event["network"].get("dst_port")
+            for event in events
+            if event.get("network", {}).get("dst_port") is not None
+        })
+        protocols = sorted({
+            event["network"].get("proto")
+            for event in events
+            if event.get("network", {}).get("proto")
+        })
+
+        connections.append({
+            "dst_ip": dst_ip,
+            "count": len(events),
+            "first_ts": events[0]["ts"],
+            "last_ts": events[-1]["ts"],
+            "intervals_seconds": intervals,
+            "avg_interval_seconds": (
+                round(sum(intervals) / len(intervals), 3)
+                if intervals
+                else None
+            ),
+            "dst_ports": ports,
+            "protocols": protocols,
+            "bytes_out_total": sum(
+                event.get("network", {}).get("bytes_out", 0)
+                for event in events
+            ),
+            "events": [
+                {"event_id": event["event_id"], "ts": event["ts"]}
+                for event in events
+            ],
+        })
+
+    connections.sort(
+        key=lambda row: (-row["count"], row["dst_ip"])
+    )
+
+    return {
+        "host": host,
+        "minutes": minutes,
+        "from": start,
+        "to": end,
+        "connections": connections,
+        "truncated": truncated,
+    }
+
+
+TELEMETRY_TOOLS = [
+    tool(get_process_tree),
+    tool(get_process_activity),
+    tool(get_host_timeline),
+    tool(get_network_connections),
+]
