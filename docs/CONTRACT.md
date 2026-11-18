@@ -11,6 +11,7 @@
 | `get_process_tree(host, pid)` | 🔍 진승호 | `host`, `pid` | `process`, `ancestors`, `children` (각 이벤트에 `event_id`) | 부모 최대 5단계, 자식 50건 (제안·협의 필요) | 기록 없음: `process=None`, 목록은 빈 배열 |
 | `get_process_activity(host, pid)` | 🔍 진승호 | `host`, `pid` | `events` (각 이벤트에 `event_id`) | 최대 50건 | 기록 없음: `events=[]` |
 | `get_host_timeline(host, around_ts, minutes)` | 🔍 진승호 | `host`, `around_ts`, `minutes` | `events`, `from`, `to`, `truncated` (각 이벤트에 `event_id`) | 최대 100건 | 기록 없음: `events=[]` |
+| `get_network_connections(host, minutes)` | 📘 박혜윤 | `host`, `minutes` | `connections`, `from`, `to`, `truncated`; 목적지 IP별 `count`, `intervals_seconds`, `avg_interval_seconds`, `events`(`event_id`) | 네트워크 이벤트 최대 500건 | 기록 없음: `connections=[]` |
 | `search_playbook(query, k)` | 📘 박혜윤 | `query`, `k` | `text`, `source`(파일 이름), `page`, `score`, `category` | 최대 3건 | 검색 결과 없음: `[]` |
 
 > **확인:** 자식 프로세스 50건, 문서 검색 최대 허용 건수, 실패 처리 규칙은 두 사람이 합의해 확정합니다. 아래 '실패하면'은 **조회 결과가 없을 때**의 제안이며, OpenSearch 연결 실패 같은 시스템 오류는 별도로 구분해 처리해야 합니다.
@@ -27,3 +28,4 @@
 | `src/soc/mocks.py` 반환 형식 확인 및 계약 설명 주석 정리 | 가짜 도구의 반환 키와 계약 필수 필드를 서로 대조 | 진승호·박혜윤 동의 (사용자 확인) |
 | `search_playbook` 결과 상한을 최대 3건으로 확정하고 `mocks.py`도 동일하게 수정 | 계약표와 mock 동작을 일치시키기 위해 | 박혜윤 확인 |
 | 중간 나눔: 계약 변경 없음 | 서로의 도구 결과 형식과 기존 계약을 대조한 결과 추가 변경이 필요하지 않음을 확인 | 진승호·박혜윤 동의 |
+| D2-7 `get_network_connections(host, minutes)` 신규 도구 추가 | 반복적인 외부 통신을 조사할 수 있도록 목적지 IP별 연결 횟수와 간격을 요약 | 박혜윤 구현 · 진승호 리뷰 예정 |
