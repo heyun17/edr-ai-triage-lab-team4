@@ -40,11 +40,13 @@ def _ids(obj) -> list[str]:
 
 # ---------------------------------------------------------------------------- 조사
 def investigate(state: TriageState) -> dict:
-    """조사 노드: LLM이 🔍 조사 도구 중 무엇을 부를지 정합니다."""
-    # TODO[AG-1]: telemetry_tools()를 LLM에 연결(bind_tools)하고, 시스템 프롬프트 + 대화(messages)로 호출합니다.
-    # 첫 호출이면 대화가 비어 있으니 알림 메시지(_alert_message)를 먼저 넣습니다.
-    # 돌려줄 것: 새 메시지들, trace ["조사"], usage (usage_of(응답))
-    raise NotImplementedError("TODO[AG-1]")
+    """조사 노드: LLM이 필요한 🔍 기록 조회 도구를 고릅니다. (AG-1, 운전 📘)"""
+    # 첫 라운드에만 경보 내용을 대화에 넣고, 다음 라운드부터는 기존 대화를 이어 갑니다.
+    history = list(state.get("messages", []))
+    first_message = [_alert_message(state["alert"])] if not history else []
+    llm = get_llm().bind_tools(telemetry_tools())
+    response = llm.invoke([SystemMessage(content=prompt("investigate"))] + history + first_message)
+    return {"messages": first_message + [response], "trace": ["조사"], "usage": usage_of(response)}
 
 
 def run_tools(state: TriageState) -> dict:
@@ -111,15 +113,23 @@ def after_guardrail(state: TriageState) -> str:
 
 # ---------------------------------------------------------------------------- 권고
 def recommend(state: TriageState) -> dict:
-    """권고 노드: 📘 플레이북 검색으로 근거를 찾고, LLM이 조치를 권고합니다."""
-    v, alert = state["verdict"], state["alert"]
-    # TODO[AG-2]: search_playbook_fn()으로 플레이북을 검색합니다. 질문은 알림 제목과 판정(기법)으로 만들고,
-    # 판정과 검색 결과를 LLM에 넘겨 Recommendation 형식으로 권고를 받습니다.
-    # 돌려줄 것: playbook(검색 결과), recommendation(dict), trace ["권고"], usage
-    raise NotImplementedError("TODO[AG-2]")
+    """권고 노드: 📘 플레이북을 검색하고 근거가 있는 권고를 만듭니다. (AG-2, 운전 🔍)"""
+    verdict, alert = state["verdict"], state["alert"]
+    techniques = verdict.get("techniques") or alert.get("techniques", [])
+    query = f"{alert.get('title', '')} {' '.join(techniques)} 대응 절차 승인권자"
+    playbook = search_playbook_fn()(query=query, k=3)
+
+    # 가짜 LLM도 똑같은 JSON 문맥을 읽도록 하고, 진짜 LLM으로 쉽게 교체합니다.
+    context = {"alert": alert, "verdict": verdict, "playbook": playbook}
+    message = HumanMessage(content="다음 판정과 플레이북을 근거로 대응을 권고하세요.\n"
+                                   + "```json\n" + json.dumps(context, ensure_ascii=False, default=str)
+                                   + "\n```")
+    llm = get_llm().with_structured_output(Recommendation, include_raw=True)
+    output = llm.invoke([SystemMessage(content=prompt("recommend")), message])
+    return {"playbook": playbook, "recommendation": output["parsed"].model_dump(),
+            "trace": ["권고"], "usage": usage_of(output["raw"])}
 
 
-# ---------------------------------------------------------------------------- 사람 승인 (2일차, 운전 🔍)
 def approval(state: TriageState) -> dict:
     """위험한 조치가 있으면 멈추고 사람의 결정을 기다립니다. 멈춘 동안 상태는 체크포인터(Postgres)에 저장됩니다.
 
