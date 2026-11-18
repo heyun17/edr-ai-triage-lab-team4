@@ -1,11 +1,11 @@
 # 아키텍처
 
-> D1-13 **화이트보드 설계안** (2026-11-18). 🔍 진승호가 선택한 설정을 바탕으로 만든 팀 검토용 초안입니다. **D1-14 코드 구현/테스트 결과가 아닙니다.**
+> D1-13 **화이트보드 설계** + D1-14 **LangGraph 뼈대 구현 기록** (2026-11-18). 아래 1장의 첫 그림은 D1-13 설계안이며, 뒤의 D1-14 절에는 사용자가 실제 출력한 Mermaid를 따로 보존합니다. **그래프 출력은 성공, pytest 결과는 아직 확인되지 않았습니다.**
 > 기준: `docs/guide/DAY1.md` 4-1, `docs/prep/01_edr_soc_intro.md` 5장, `src/soc/agent/state.py`, `docs/CONTRACT.md`.
 
 ## 1. 에이전트 설계도 (D1-13)
 
-아래 Mermaid는 **직접 작성한 설계용 그림**입니다. `python -m soc.agent.graph`의 실행 출력은 아닙니다. 현재 `src/soc/agent/graph.py`의 `TODO[AG-3]` 때문에 이 명령은 `NotImplementedError`로 멈춥니다. D1-14 구현 후 실제 출력과 대조합니다.
+아래 Mermaid는 **D1-13에서 직접 작성한 설계용 그림**입니다. **D1-14에서 노드·Edge를 실제 연결한 뒤** `python -m soc.agent.graph`가 Mermaid 출력을 생성한 것을 확인했습니다. 실행된 코드가 만든 원본 그래프는 **4. D1-14 실제 실행 결과**에 별도로 붙였습니다. 사람 승인 대기는 여전히 Day2 구현 범위입니다.
 
 ```mermaid
 flowchart TD
@@ -64,21 +64,78 @@ flowchart TD
 
 <!-- 01b 문서 2장의 그림을 실제 리소스(Deployment, StatefulSet, Job, Service, Ingress, Secret, ConfigMap)로 바꿔 그리기 -->
 
-## D1-14 그래프 뼈대 구현 진행 (2026-11-18)
+## 4. D1-14 그래프 뼈대 구현·실행 확인 (2026-11-18)
 
-- **AG-1 조사 노드:** `nodes.py`의 `investigate()`에서 🔍 도구를 LLM에 연결하고 알림·대화·도구 메시지를 누적하도록 구현 (📘 운전 영역).
-- **AG-2 권고 노드:** `recommend()`에서 📘 `search_playbook(query, k=3)`으로 정책 검색 후 LLM의 구조화된 `Recommendation` 생성 (🔍 운전 영역).
-- **AG-3 Edge:** `graph.py`에서 7개 노드를 연결하고 **조사 ↔ 도구** 및 **가드레일 실패 시 재조사** 조건부 경로 구현.
-- **정적 검사:** Python 소스 문법 검사 및 AST 구조 검사(노드 7개, 직접 Edge 6개, 조건 Edge 2개) 수행.
-- **아직 미검증:** 프로젝트 의존 패키지가 없는 검사용 환경에서는 `pytest tests/test_graph_skeleton.py -q` 및 `python -m soc.agent.graph`를 실제 실행하지 못함. **D1-14 최종 완료 판정 보류.**
+### 4-1. 구현한 파일과 D1-13 표의 연결
 
-### 남은 실행 확인 (프로젝트 가상환경에서)
+| D1-13 설계 요소 | D1-14 실제 구현 | 확인 상태 |
+|---|---|---|
+| **State** | `src/soc/agent/state.py`의 `TriageState` 재사용; `messages`, `seen_event_ids`, `tool_rounds`, `verdict`, `playbook`, `approval`, `trace` 등 | 기존 스키마와 연결 |
+| **조사 노드 AG-1 (📘 운전 영역)** | `nodes.py`의 `investigate()`: 가짜 LLM에 조사 도구를 연결하고 경보·메시지 전달 | 코드 구현 |
+| **권고 노드 AG-2 (🔍 운전 영역)** | `nodes.py`의 `recommend()`: `search_playbook(query, k=3)` 검색 → 구조화 권고 | 코드 구현 |
+| **Edge AG-3 (👥)** | `graph.py`: 시작부터 종료까지 7개 노드 연결, 조사와 가드레일의 조건부 Edge | **Mermaid 출력으로 연결 확인** |
+| **가드레일 및 사람 승인** | 그래프 노드는 연결됨. 실제 근거 검증 G-1·G-2와 승인 중단/재개 H-1·H-2는 Day2 과제 | 연결만 완료, 기능은 별도 |
 
-```bash
-pytest tests/test_graph_skeleton.py -q
+### 4-2. 실제 실행한 명령과 Mermaid 결과
+
+사용자가 자신의 Windows 프로젝트 환경에서 아래 명령을 실행했고, `NotImplementedError` 없이 실제 그래프 구조가 출력됐습니다.
+
+```powershell
 python -m soc.agent.graph
 ```
 
-테스트가 통과하면 `trace`에 **조사 → 도구 → 조사 → 판정 → 권고 → 리포트** 순서가 나타나고, 생성된 Mermaid 코드를 위 D1-13 설계도와 비교합니다. **실제 출력이나 테스트 통과 결과는 확인 전이므로 임의로 기록하지 않습니다.**
+**아래는 실행 출력 그대로 기록한 Mermaid입니다.** `investigate`와 `guardrail`의 점선이 조건부 분기, `tools → investigate`가 반복 경로입니다.
 
-> 가드레일 검사 G-1/G-2와 실제 승인 대기 H-1/H-2는 Day2 과제입니다. 현재 가드레일/승인 노드는 뼈대 경로에 포함돼 있지만 완성된 기능이 아닙니다.
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+        __start__([<p>__start__</p>]):::first
+        investigate(investigate)
+        tools(tools)
+        judge(judge)
+        guardrail(guardrail)
+        recommend(recommend)
+        approval(approval)
+        report(report)
+        __end__([<p>__end__</p>]):::last
+        __start__ --> investigate;
+        approval --> report;
+        guardrail -.-> investigate;
+        guardrail -.-> recommend;
+        investigate -.-> judge;
+        investigate -.-> tools;
+        judge --> guardrail;
+        recommend --> approval;
+        tools --> investigate;
+        report --> __end__;
+        classDef default fill:#f2f0ff,line-height:1.2
+        classDef first fill-opacity:0
+        classDef last fill:#bfb6fc
+```
+
+### 4-3. 코드 기반 그래프와 설계안 비교
+
+| 검토 항목 | 실제 출력 |
+|---|---|
+| 노드 | `investigate`, `tools`, `judge`, `guardrail`, `recommend`, `approval`, `report` **7개 확인** |
+| 조사 분기 | `investigate → tools` 또는 `judge`; `tools → investigate` 반복 |
+| 가드레일 분기 | `guardrail → investigate` 또는 `recommend` |
+| 최종 경로 | `recommend → approval → report → __end__` |
+| 파라미터 | 조사 라운드 최대 **6**, 가드레일 실패 시 재조사 최대 **1** (설정 파일) |
+| 사람 승인 | **위험한 조치만 사람 승인**이 설계 목표이나, 현재 승인 노드는 실제 일시정지 없이 `not_implemented`를 반환 |
+
+### 4-4. 테스트와 체크표 처리
+
+- **확인 완료:** `python -m soc.agent.graph` 실행으로 **실제 Mermaid 그래프 생성 성공**.
+- **아직 증빙 없음:** `python -m pytest tests/test_graph_skeleton.py -q` 결과. 그래프 구조 출력만으로는 가짜 경보가 끝까지 처리되어 리포트와 `trace`가 생성되는지 확정할 수 없습니다.
+- **D1-14 최종 체크:** 필수 테스트의 `2 passed`를 확인한 다음 완료로 표시합니다.
+
+```powershell
+python -m pytest tests/test_graph_skeleton.py -q
+```
+
+> D1-13 설계용 그래프와 D1-14 실행 결과는 구분해 기록합니다. D1-15 티치백, Day2 실제 근거 검증 및 사람 승인은 이번 결과에 포함되지 않습니다.
