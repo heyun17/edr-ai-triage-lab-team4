@@ -21,32 +21,35 @@ def _kind() -> str:
     return "postgres" if settings.backend == "real" else "memory"
 
 
-
-
 @lru_cache(maxsize=1)
 def get_checkpointer():
     if _kind() == "memory":
+        log.info("체크포인터: memory")
         return InMemorySaver()
 
-    import psycopg
-    from psycopg.rows import dict_row
     from langgraph.checkpoint.postgres import PostgresSaver
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
 
-    # 연결 풀 대신 PostgreSQL에 직접 연결
-    conn = psycopg.connect(
-        settings.postgres_dsn,
-        autocommit=True,
-        prepare_threshold=0,
-        row_factory=dict_row,
-        connect_timeout=5,
+    pool = ConnectionPool(
+        conninfo=settings.postgres_dsn,
+        min_size=1,
+        max_size=10,
+        kwargs={
+            "autocommit": True,
+            "prepare_threshold": 0,
+            "row_factory": dict_row,
+        },
+        open=True,
     )
 
-    # 체크포인트 저장소 생성
-    saver = PostgresSaver(conn)
-    saver.setup()
+    pool.wait()
 
-    return saver
+    checkpointer = PostgresSaver(pool)
+    checkpointer.setup()
 
+    log.info("체크포인터: postgres")
+    return checkpointer
 
 
 def ping() -> bool:
