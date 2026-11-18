@@ -10,6 +10,45 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 
 ## 장애 기록
 
+
+### [5-2] Ingress 뒤 Service selector 오타
+
+**작업일:** 2026-11-18  
+**담당:** 📘 문서 담당
+
+**증상**
+- Ingress 리소스는 정상 생성됐지만 외부 API 요청이 정상 처리되지 않음
+- 외부 `GET /healthz` 요청 결과 `HTTP/1.1 503 Service Unavailable`, 응답 본문 `no available server`
+
+**확인 명령과 출력**
+- 장애 주입: `sudo k3s kubectl -n soc patch service api -p '{"spec":{"selector":{"app":"apii"}}}'`
+- EndpointSlice 확인: `sudo k3s kubectl -n soc get endpointslices -l kubernetes.io/service-name=api`
+- 결과: `ENDPOINTS`와 `PORTS`가 `<unset>`으로 표시되어 연결 대상 Pod가 없음
+- 외부 확인: `curl.exe -i http://soc.1.201.110.22.nip.io/healthz`
+- 실제 결과: `503 Service Unavailable` / `no available server` (가이드 예상 502와 달랐음)
+
+**원인**
+- Service selector를 실제 API Pod 라벨 `app: api`와 다른 `app: apii`로 변경해 Service가 Pod를 선택하지 못함
+- Traefik이 전달할 Endpoint가 없어 외부 요청에 503을 반환함
+
+**조치**
+- Service selector를 `app: api`로 복구
+- EndpointSlice 재확인 결과 `PORTS=8000`, `ENDPOINTS=10.42.0.10`
+- 외부 `GET /healthz` 재확인 결과 `HTTP/1.1 200 OK`, 응답 `{"status":"ok","backend":"memory"}`
+
+**진단 후 나눔**
+- 진단자: 박혜윤
+- 출제자: 진승호 (팀 실습 역할 기준; 실제 출제 여부는 팀 확인 필요)
+- 다음에 같은 증상을 보면 처음 칠 명령: `sudo k3s kubectl -n soc get endpointslices -l kubernetes.io/service-name=api`
+
+**재발 방지**
+- Ingress의 502/503 응답에서 애플리케이션 로그부터 보기 전에 Service와 EndpointSlice 연결 여부를 확인
+- Service selector와 Pod template labels가 일치하는지 확인
+
+**고장 예상표와 비교**
+- 5-2 Service selector 오타 장애를 재현하고 복구함
+- 가이드의 예상 502 대신 실제 환경에서는 503이 반환됨
+
 ### [0-2] Docker Compose 포트 충돌
 - 출제: 📘 박혜윤
 - 진단: 🔍 진승호
