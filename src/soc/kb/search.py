@@ -19,51 +19,191 @@ RRF_K = 60
 
 def _hits(res: dict) -> list[dict]:
     out = []
+
     for h in res["hits"]["hits"]:
         s = h["_source"]
-        out.append({"id": h["_id"], "source": s.get("source"), "page": s.get("page"),
-                    "category": s.get("category"), "text": s.get("text", ""), "score": h.get("_score")})
+
+        out.append(
+            {
+                "id": h["_id"],
+                "source": s.get("source"),
+                "page": s.get("page"),
+                "category": s.get("category"),
+                "text": s.get("text", ""),
+                "score": h.get("_score"),
+            }
+        )
+
     return out
 
 
-def keyword_search(query: str, k: int = 10) -> list[dict]:
-    body = {"size": k, "_source": {"excludes": ["embedding"]}, "query": {"match": {"text": query}}}
-    return _hits(get_client().search(index=settings.index_kb, body=body))
+def keyword_search(
+    query: str,
+    k: int = 10,
+) -> list[dict]:
+    body = {
+        "size": k,
+        "_source": {
+            "excludes": ["embedding"]
+        },
+        "query": {
+            "match": {
+                "text": query
+            }
+        },
+    }
+
+    return _hits(
+        get_client().search(
+            index=settings.index_kb,
+            body=body,
+        )
+    )
 
 
-def vector_search(query: str, k: int = 10) -> list[dict]:
-    body = {"size": k, "_source": {"excludes": ["embedding"]},
-            "query": {"knn": {"embedding": {"vector": embed_query(query), "k": k}}}}
-    return _hits(get_client().search(index=settings.index_kb, body=body))
+def vector_search(
+    query: str,
+    k: int = 10,
+) -> list[dict]:
+    body = {
+        "size": k,
+        "_source": {
+            "excludes": ["embedding"]
+        },
+        "query": {
+            "knn": {
+                "embedding": {
+                    "vector": embed_query(query),
+                    "k": k,
+                }
+            }
+        },
+    }
+
+    return _hits(
+        get_client().search(
+            index=settings.index_kb,
+            body=body,
+        )
+    )
 
 
-def rrf_fuse(result_lists: list[list[dict]], top_n: int) -> list[dict]:
-    """여러 검색 결과를 순위로 합칩니다. 결과 하나하나에는 "id"가 있습니다."""
-    # TODO[DOC-5]: 결과 목록마다 순위(1부터)를 매겨 문서 id별로 1 / (RRF_K + 순위)를 더하고,
-    # 합계가 큰 순서로 top_n개를 돌려줍니다. 돌려줄 때 "score"를 RRF 점수로 바꿉니다.
-    raise NotImplementedError("TODO[DOC-5]")
+def rrf_fuse(
+    result_lists: list[list[dict]],
+    top_n: int,
+) -> list[dict]:
+    """여러 검색 결과를 RRF 점수로 합쳐 상위 결과를 반환합니다."""
+
+    scores: dict[str, float] = {}
+    docs: dict[str, dict] = {}
+
+    for results in result_lists:
+        for rank, hit in enumerate(
+            results,
+            start=1,
+        ):
+            doc_id = hit["id"]
+
+            scores[doc_id] = (
+                scores.get(doc_id, 0.0)
+                + 1.0 / (RRF_K + rank)
+            )
+
+            if doc_id not in docs:
+                docs[doc_id] = dict(hit)
+
+    ranked_ids = sorted(
+        scores,
+        key=lambda doc_id: (
+            -scores[doc_id],
+            doc_id,
+        ),
+    )
+
+    fused = []
+
+    for doc_id in ranked_ids[:top_n]:
+        hit = dict(docs[doc_id])
+        hit["score"] = scores[doc_id]
+        fused.append(hit)
+
+    return fused
 
 
-def search(query: str, k: int = 3, mode: str = "hybrid") -> list[dict]:
-    """mode: keyword / vector / hybrid. 평가(rag_eval)에서 세 방식을 비교합니다."""
+def search(
+    query: str,
+    k: int = 3,
+    mode: str = "hybrid",
+) -> list[dict]:
+    """mode: keyword / vector / hybrid."""
+
     if mode == "keyword":
-        return keyword_search(query, k)
+        return keyword_search(
+            query,
+            k,
+        )
+
     if mode == "vector":
-        return vector_search(query, k)
-    n = max(k * 3, 10)
-    return rrf_fuse([keyword_search(query, n), vector_search(query, n)], top_n=k)
+        return vector_search(
+            query,
+            k,
+        )
+
+    n = max(
+        k * 3,
+        10,
+    )
+
+    return rrf_fuse(
+        [
+            keyword_search(
+                query,
+                n,
+            ),
+            vector_search(
+                query,
+                n,
+            ),
+        ],
+        top_n=k,
+    )
 
 
-def search_playbook(query: str, k: int = 3) -> list[dict]:
+def search_playbook(
+    query: str,
+    k: int = 3,
+) -> list[dict]:
     """회사의 대응 플레이북·정책 문서에서 질문과 관련된 조각을 찾습니다.
-    판정 기준, 조치별 승인권자, 공격 유형별 대응 절차, 오탐 예외 규정을 확인할 때 씁니다.
-    결과마다 source(파일 이름)가 있으니, 권고에는 반드시 출처를 붙이세요.
+
+    판정 기준, 조치별 승인권자, 공격 유형별 대응 절차,
+    오탐 예외 규정을 확인할 때 씁니다.
+
+    결과마다 source(파일 이름)가 있으니,
+    권고에는 반드시 출처를 붙이세요.
 
     Args:
-        query: 찾을 내용 (예: "LSASS 덤프 대응 승인권자")
-        k: 돌려받을 조각 수 (기본 3)
+        query: 찾을 내용
+        k: 돌려받을 조각 수
     """
-    return [{key: h[key] for key in ("source", "page", "category", "text", "score")} for h in search(query, k)]
+
+    return [
+        {
+            key: hit[key]
+            for key in (
+                "source",
+                "page",
+                "category",
+                "text",
+                "score",
+            )
+        }
+        for hit in search(
+            query,
+            k,
+        )
+    ]
 
 
-KB_TOOLS = [tool(search_playbook)]
+KB_TOOLS = [
+    tool(search_playbook)
+]
