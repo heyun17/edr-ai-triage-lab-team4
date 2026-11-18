@@ -64,9 +64,21 @@ flowchart TD
 
 <!-- 01b 문서 2장의 그림을 실제 리소스(Deployment, StatefulSet, Job, Service, Ingress, Secret, ConfigMap)로 바꿔 그리기 -->
 
-## 다음 단계: D1-14 (아직 수행하지 않음)
+## D1-14 그래프 뼈대 구현 진행 (2026-11-18)
 
-- `src/soc/agent/graph.py`: `TODO[AG-3]`에 위 조건부 엣지 연결
-- `src/soc/agent/nodes.py`: `TODO[AG-1]` 및 `TODO[AG-2]`에 가짜 LLM/도구 연결
-- `pytest tests/test_graph_skeleton.py -q` 통과 후 `python -m soc.agent.graph` 실행
-- 출력된 Mermaid를 D1-13 화이트보드 설계와 비교
+- **AG-1 조사 노드:** `nodes.py`의 `investigate()`에서 🔍 도구를 LLM에 연결하고 알림·대화·도구 메시지를 누적하도록 구현 (📘 운전 영역).
+- **AG-2 권고 노드:** `recommend()`에서 📘 `search_playbook(query, k=3)`으로 정책 검색 후 LLM의 구조화된 `Recommendation` 생성 (🔍 운전 영역).
+- **AG-3 Edge:** `graph.py`에서 7개 노드를 연결하고 **조사 ↔ 도구** 및 **가드레일 실패 시 재조사** 조건부 경로 구현.
+- **정적 검사:** Python 소스 문법 검사 및 AST 구조 검사(노드 7개, 직접 Edge 6개, 조건 Edge 2개) 수행.
+- **아직 미검증:** 프로젝트 의존 패키지가 없는 검사용 환경에서는 `pytest tests/test_graph_skeleton.py -q` 및 `python -m soc.agent.graph`를 실제 실행하지 못함. **D1-14 최종 완료 판정 보류.**
+
+### 남은 실행 확인 (프로젝트 가상환경에서)
+
+```bash
+pytest tests/test_graph_skeleton.py -q
+python -m soc.agent.graph
+```
+
+테스트가 통과하면 `trace`에 **조사 → 도구 → 조사 → 판정 → 권고 → 리포트** 순서가 나타나고, 생성된 Mermaid 코드를 위 D1-13 설계도와 비교합니다. **실제 출력이나 테스트 통과 결과는 확인 전이므로 임의로 기록하지 않습니다.**
+
+> 가드레일 검사 G-1/G-2와 실제 승인 대기 H-1/H-2는 Day2 과제입니다. 현재 가드레일/승인 노드는 뼈대 경로에 포함돼 있지만 완성된 기능이 아닙니다.
