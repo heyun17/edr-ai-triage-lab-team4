@@ -33,4 +33,5 @@
 | `docs/CAPACITY.md` | 2일차: 인프라 2단계 전 |
 | `docs/DEPLOYMENT.md`, `docs/POSTMORTEM.md` | 3일차 |
 | `docs/teachback/` | 매일 마지막 |
+| [`docs/PROGRESS_2026-11-17.md`](docs/PROGRESS_2026-11-17.md) | **팀4 Day1 완료 현황(11/17~18)·Day2 인계** |
 | `docs/advanced/` | 3일차: 고도화 기록 |
