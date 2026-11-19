@@ -1,0 +1,69 @@
+# D3-1 / Infra Stage 6: one-time, idempotent OpenSearch index setup.
+# Uses the application image already imported on the k3s node.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-index-setup
+  namespace: soc
+  labels:
+    app: soc-index-setup
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-index-setup
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-opensearch
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: soc-config
+          command: ["python", "-c"]
+          args:
+            - |
+              import time
+              from soc.osclient import get_client
+              for attempt in range(60):
+                  try:
+                      if get_client().ping():
+                          print("OpenSearch ready")
+                          break
+                  except Exception as e:
+                      print(f"OpenSearch not ready: {e}")
+                  time.sleep(3)
+              else:
+                  raise SystemExit("OpenSearch did not become ready")
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+      containers:
+        - name: setup
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: soc-config
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              python -m soc.telemetry.index_template
+              python -c 'from soc.alerts import ensure_indices; ensure_indices(); print("Alerts and reports indices ready")'
+              python -c 'from soc.kb.index import ensure_index; ensure_index(recreate=False); print("KB index ready (existing documents preserved)")'
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
