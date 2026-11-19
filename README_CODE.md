@@ -9,7 +9,7 @@ pip install -r requirements.txt          # 앱 (둘 다)
 pip install -r requirements-kb.txt       # 📘 문서 담당: PDF 파싱(Unstructured)까지
 pip install -e .                         # 둘 다: `python -m soc.…` 명령이 어디서든 soc 패키지를 찾게 (src/ 아래에 있어서 필요)
 cp .env.example .env                     # Windows: copy .env.example .env  → OPENAI_API_KEY 채우기
-pytest -q                                # 아직 TODO가 있어 실패가 많은 게 정상입니다
+pytest -q                                # 2026-11-19 전체 필수 테스트가 CI에서 성공(환경 구성 필요)
 ```
 
 - 설정은 모두 `.env`에서 읽습니다. k3s에서는 같은 이름의 값이 ConfigMap·Secret으로 들어갑니다.
