@@ -1,0 +1,51 @@
+# Day3: repeat exactly the same 21-question RAG evaluation AFTER direct OCR re-embedding.
+# Read-only evaluation against experimental index kb-playbooks-ocr.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-rag-ocr-direct-eval
+  namespace: soc
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              python -m soc.eval.rag_eval --mode all --k 3
+              echo '=== k10 OCR answer text in keyword Top3 ==='
+              python -c 'from soc.kb.search import keyword_search; q="같은 패턴이 몇 번 오탐으로 종결되면 룰 예외 등록을 요청해?"; hits=keyword_search(q,3); print([(h["source"],"세 번" in h["text"]) for h in hits]); assert any(h["source"]=="06_false_positive_guide_scanned.pdf" and "세 번" in h["text"] for h in hits)'
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: INDEX_KB
+              value: "kb-playbooks-ocr"
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
