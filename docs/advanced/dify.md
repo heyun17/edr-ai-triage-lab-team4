@@ -90,3 +90,13 @@ Dify Cloud에 연결하려면 외부 HTTPS 접근이 필요하다. 실습용 `in
 - Dify 외부 지식 등록: https://docs.dify.ai/en/cloud/use-dify/knowledge/connect-external-knowledge-base
 
 **완료 판정 주의:** 백엔드 API 코드 및 테스트가 성공해도 **Dify Cloud UI에 등록하고 동일 질의를 비교하기 전에는 D3-3 전체 완료 체크를 하지 않는다.**
+
+## 최종 진행 상태: Dify Cloud 저장 실패 (2026-11-19)
+
+- `soc-dify-kb` 별도 최소 API Deployment의 `/healthz` 정상 응답, 64자 전용 인증키 생성 확인, 미인증 `POST /dify/retrieval` 403, 최신 이미지 롤아웃 성공.
+- Cloudflare **임시 공개 HTTPS 터널** 연결 성공. 일시적으로 발급한 외부 HTTPS 주소로 Ubuntu에서 `GET /healthz` **200**, 올바른 Bearer 키로 빈 `POST /dify/retrieval` **200** 확인.
+- 그러나 사용자가 **Dify Cloud 웹 UI에서 External Knowledge API 등록·저장을 반복 시도했지만 ‘작업 실패’**로 저장되지 않았다. 따라서 실제 Dify 챗봇에서 동일 질문·에이전트 답변 비교는 **미완료**다.
+- **보안:** 사용자가 채팅 로그에 DIFY_API_KEY 전체를 노출했다. 해당 키는 **폐기 대상**이며 공개 실습 터널과 API/Secret 삭제는 터미널에서 실행 여부를 확인해야 한다. 채팅에 노출된 키 값과 임시 주소를 문서에 복사하지 않았다.
+- Dify Cloud 실패 원인(Cloud 방화벽, 검증 요청 형식, 공급자 제한 등)은 클라우드 저장 시 실제 서버 로그를 확보하지 못해 **확정하지 않는다**.
+
+**제출/포트폴리오:** DIFY-1 백엔드 구현 및 내부 연결 검증은 가능. **D3-3 전체 Dify Cloud 연동 성공으로 체크하지 않는다.**
