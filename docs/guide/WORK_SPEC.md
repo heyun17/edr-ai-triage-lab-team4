@@ -90,7 +90,8 @@
 > | D3-9 | RAG 수치 해석과 미개선 원인·추후 과제 `DECISIONS.md`에 1인 기록 | 팀원 간 설명·질문 |
 > | D3-11 | `DEPLOYMENT.md`에 실제 실행 명령·결과 정리 | 옆 팀 교차 검증 |
 > | D3-12 | `POSTMORTEM.md`에 Day2 재현 장애(5-2) 비난 없는 5 Whys 회고 | 2인 검토 |
-> | D3-3, D3-7, D3-10, D3-13 | D3-3 Dify 및 D3-7 무작위 2인 종합 드릴, D3-10 최종 예상표, D3-13 발표는 원 교안 완료 기준 미달 | D3-4~6은 별도 행에 기록한 1인 압축 고도화이며 4개 고도화·2인 리뷰는 미실시 |
+> | D3-10 | 강사 교안 예상과 실제 출력 비교·예상치 못한 점을 `docs/advanced/day3_failure_predictions.md`에 1인 작성 | 팀원 교차 검토 미실시; 개인 사전 예상표 원본은 확인되지 않아 강사 예상으로 구분 |
+> D3-3 Dify, D3-7 2인 무작위 종합 드릴, D3-13 발표는 미수행. D3-4~6 고도화 2개는 1인 수행했지만 교안의 팀 리뷰·4개 선택 기준은 미충족.
 >
 > 실측·근거: [DECISIONS](../DECISIONS.md) · [RUNBOOK](../RUNBOOK.md) · [DEPLOYMENT](../DEPLOYMENT.md) · [POSTMORTEM](../POSTMORTEM.md)
 >
