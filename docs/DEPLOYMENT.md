@@ -169,3 +169,11 @@ sudo k3s kubectl -n soc logs deployment/api --tail=50
 | D3-5 `parent_name` Worker 고도화 | **12건 FakeLLM 평가 10/12 → 12/12**, `a8dc79a` 배포 및 정상 롤아웃 |
 | D3-6 OCR 실험 인덱스 | **26청크, 키워드 Recall@3 20/21**, 기본 RRF 18/21 유지; 운영 `kb-playbooks` 보존 |
 | Dify 연동, 실서비스 RAG 에이전트 | **미실시/미검증** |
+
+## 10. Day3 최종 OCR 평가 및 서버 검증 기록
+
+- `soc-ocr-quality-check`: 300dpi Tesseract(`kor+eng --psm 6`) OCR에서 k10 답인 `세 번` 확인.
+- `soc-kb-ocr-direct-patch`: PDF06 594자 텍스트로 한 청크 재임베딩 및 `kb-playbooks-ocr` 내 해당 문서 갱신 성공. 출력: `PATCH SUCCESS: production KB 25, OCR KB 26; one isolated chunk updated`.
+- `soc-rag-ocr-direct-eval`: **Keyword 20/21 = 0.952, Vector 19/21 = 0.905, Hybrid 19/21 = 0.905**. k10 3방식 모두 검색 성공, Keyword 결과 본문 내 `세 번` 포함 확인.
+- 시험용 `soc-api-rollout-chaos` Deployment/Service 제거 후 운영 `api`·`generator`·`worker` 각각 **1/1**. API `/readyz` 응답 `{"ready":true,"opensearch":true,"postgres":true}`.
+- **주의:** OCR 594자 수정은 현재 실험 KB 문서 한 건의 직접 패치로, 전체 ingest 소스의 지속적인 처리 전략은 아직 Unstructured `ocr_only`다. 원본 `kb-playbooks` 25개 보존, 앱의 실제 RAG 엔드투엔드 통합 미검증, 교차 팀 리뷰 미실시.
