@@ -1,0 +1,86 @@
+# D3-3: isolated, retrieval-only API. Requires Kubernetes secret soc-dify-key.
+# Unlike the existing service/api, this app exposes ONLY /dify/retrieval and /healthz.
+# KB_TOOLS=real and INDEX_KB=kb-playbooks-ocr use the existing isolated OCR index.
+# No Ingress: internal-only until the user chooses a secure HTTPS tunnel.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soc-dify-kb
+  namespace: soc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: soc-dify-kb
+  template:
+    metadata:
+      labels:
+        app: soc-dify-kb
+    spec:
+      containers:
+        - name: dify-kb
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:2712708
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "soc.api.dify_only:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: KB_TOOLS
+              value: "real"
+            - name: INDEX_KB
+              value: "kb-playbooks-ocr"
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+            - name: DIFY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-dify-key
+                  key: DIFY_API_KEY
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: soc-dify-kb
+  namespace: soc
+spec:
+  type: ClusterIP
+  selector:
+    app: soc-dify-kb
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
