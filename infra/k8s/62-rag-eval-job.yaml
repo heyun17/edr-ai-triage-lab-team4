@@ -1,0 +1,48 @@
+# D3-8: read-only RAG evaluation against the existing kb-playbooks index.
+# This Job queries OpenSearch and OpenAI embeddings; it does not recreate the KB index.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-rag-eval
+  namespace: soc
+  labels:
+    app: soc-rag-eval
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-rag-eval
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "soc.eval.rag_eval", "--mode", "all", "--k", "3"]
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
