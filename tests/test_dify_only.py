@@ -13,6 +13,5 @@ def test_dify_only_app_does_not_expose_alerts_or_approvals():
     assert client.get("/readyz").status_code == 404
     assert client.get("/docs").status_code == 404
     assert client.get("/openapi.json").status_code == 404
-    assert client.post("/dify/retrieval", json={"query": "격리"}).status_code == 503 or client.post(
-        "/dify/retrieval", json={"query": "격리"}
-    ).status_code == 403
+    response = client.post("/dify/retrieval", json={"query": "격리"})
+    assert response.status_code in {403, 503}
