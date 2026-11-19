@@ -64,14 +64,19 @@ def choose_strategy(
 
     우선순위
     1. 호출자가 직접 지정한 strategy
-    2. 설정된 hi_res 대상 문서
-    3. 기본 parse_strategy
+    2. 설정된 스캔 문서(ocr_only)
+    3. 설정된 hi_res 대상 문서
+    4. 기본 parse_strategy
     """
 
     if strategy:
         return strategy
 
     path = Path(path)
+
+    # 06번 등 이미지 스캔 PDF는 fast에서 텍스트 0개였으므로 OCR을 적용합니다.
+    if path.name in _configured_files(settings.kb_ocr_files):
+        return "ocr_only"
 
     if path.name in _hi_res_files():
         return "hi_res"
