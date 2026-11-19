@@ -114,3 +114,24 @@ def test_mapping_types():
     assert props["process"]["properties"]["pid"]["type"] == "long"
     assert props["process"]["properties"]["cmdline"]["type"] == "text"
     assert "keyword" in props["process"]["properties"]["cmdline"]["fields"]
+
+def test_summarize_preserves_parent_name_without_expanding_command():
+    """D3-5: 정상 운영 도구 부모 이름을 버리면 FakeLLM 오탐이 늘 수 있습니다."""
+    event = {
+        "event_id": "evt-d3-parent",
+        "ts": "2026-11-16T09:00:00Z",
+        "type": "process",
+        "process": {
+            "pid": 1234,
+            "ppid": 600,
+            "name": "powershell.exe",
+            "parent_name": "ccmexec.exe",
+            "cmdline": "powershell.exe " + ("x" * 150),
+            "user": "admin",
+            "signed": True,
+        },
+    }
+    result = tools.summarize(event)
+    assert result["parent_name"] == "ccmexec.exe"
+    assert result["event_id"] == "evt-d3-parent"
+    assert len(result["cmdline"]) <= tools.CMD_MAX
