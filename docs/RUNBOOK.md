@@ -364,6 +364,23 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 - 재실행 주의: `61-kb-ingest-job.yaml`이 실행하는 적재 스크립트가 **인덱스를 재생성하므로 기존 문서를 지울 수 있다.**
 - 진단 첫 명령: `sudo k3s kubectl -n soc get jobs,pods`, `sudo k3s kubectl -n soc logs job/soc-kb-ingest`.
 
+
+### [6-1] OpenSearch URL 오타로 Job 실패 → 정상 주소로 복구 (2026-11-19)
+
+**환경:** k3s `soc` namespace, 실제 PDF 적재 Job과 KB 인덱스는 건드리지 않는 연결 확인용 별도 Job.
+
+1. 장애 주입: `infra/k8s/68-opensearch-url-chaos-job.yaml` 적용. `OPENSEARCH_URL=http://opensearhc:9200` 오타 삽입.
+2. 진단 로그: `OPENSEARCH_URL: http://opensearhc:9200`, `OpenSearch reachable: False`.
+3. 실패 확인: `kubectl wait --for=condition=failed job/soc-opensearch-url-chaos --timeout=180s` 성공, `get job`에서 **Failed 0/1**, 43초.
+4. 복구: `infra/k8s/69-opensearch-url-recovery-job.yaml` 적용. `OPENSEARCH_URL=http://opensearch:9200`로 정정.
+5. 검증: `kubectl wait --for=condition=complete job/soc-opensearch-url-recovery --timeout=180s` 성공, 로그 `OpenSearch reachable: True`.
+
+**원인:** Kubernetes Service DNS 이름 `opensearch` 오타로 OpenSearch에 접속할 수 없었다. URL 오타는 파드의 시작만으로 확인할 수 없으며 작업 성공 상태와 로그까지 검사해야 한다.
+
+**재발 방지:** Job의 URL을 별도 ConfigMap의 `OPENSEARCH_URL`에서 참조하고, 실행 전 DNS·접속 확인, 실패 시 `kubectl get pods`와 `kubectl logs` 순서로 확인한다.
+
+**구분:** 강사 교안 6-1의 실패 원인을 **격리된 연결 확인 Job으로 재현**한 것이다. 원본 대용량 PDF 적재 Job 자체에 오타를 주입한 것은 아니다. 팀원 간 교차 진단은 미실시.
+
 ### [7] GitHub Actions → 새 이미지 배포 → 원복
 
 1. `.github/workflows/build-ghcr.yml` 수정: 자동 테스트 → Docker 빌드 → GHCR push, 커밋 SHA7 태그 사용.
