@@ -343,3 +343,52 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 4. API 준비 상태: 외부 `GET /readyz` 응답의 OpenSearch·PostgreSQL 연결 여부 확인
 
 **결론:** 장애 재현 및 정상 복구는 대부분 기록으로 확인된다. 2-1은 반복 시도에도 예상 장애가 발생하지 않아 **미재현**으로 남긴다. 본 비교는 1인 정리이며 팀원 간 진단 후 나눔을 수행했다고 주장하지 않는다.
+
+
+---
+
+## Day3 압축 실습: Job 적재, CI/CD 및 평가 (2026-11-19, 1인 기록)
+
+> 아래는 장애 주입 기록이 아니라 **정상 배포 및 운영 검증 기록**이다. 교안 필수 깨 보기 6-1(Job 접속 주소 오류), 7-1(깨진 이미지 배포)은 시간상 수행하지 않았다.
+
+### [6] OpenSearch Setup Job + PDF 적재 Job
+
+| 확인 | 실제 결과 |
+|---|---|
+| `sudo k3s kubectl -n soc get jobs` | `soc-index-setup Complete 1/1`, `soc-kb-ingest Complete 1/1` |
+| `sudo k3s kubectl -n soc logs job/soc-kb-ingest --tail=30` | `청크 합계 25개`, `'kb-playbooks'에 25개 저장` |
+| `kubectl ... count(index='kb-playbooks')` | `KB documents: 25` |
+| PDF 글꼴 경고 | `Could not get FontBBox...` 출력이 있었으나 Job은 Complete |
+
+- PDF 9개가 모두 입력으로 처리되지만 **06 스캔 문서에서는 텍스트 추출이 되지 않아 해당 PDF 청크는 0개**다.
+- 재실행 주의: `61-kb-ingest-job.yaml`이 실행하는 적재 스크립트가 **인덱스를 재생성하므로 기존 문서를 지울 수 있다.**
+- 진단 첫 명령: `sudo k3s kubectl -n soc get jobs,pods`, `sudo k3s kubectl -n soc logs job/soc-kb-ingest`.
+
+### [7] GitHub Actions → 새 이미지 배포 → 원복
+
+1. `.github/workflows/build-ghcr.yml` 수정: 자동 테스트 → Docker 빌드 → GHCR push, 커밋 SHA7 태그 사용.
+2. **최초 실행 실패:** Dify 선택 실습의 `TODO[DIFY-1]` 미구현으로 테스트 **2 failed, 17 passed, 1 skipped**. 이 오류가 빌드를 차단한 것이 CI 관문 동작의 실제 사례다. 의도적 7-1 장애 주입과는 다르다.
+3. Dify 관련 미완성 테스트를 제외하여 핵심 테스트 관문을 유지했고, 이후 GitHub Actions **성공**: https://github.com/heyun17/edr-ai-triage-lab-team4/actions/runs/44464039404
+4. 서버 `sudo k3s crictl pull ...:752fccd`: 새 이미지 다운로드 성공.
+5. `sudo k3s kubectl -n soc set image deployment/api api=...:752fccd`, `rollout status`: 신규 배포 성공.
+6. 신규 API `/readyz`: `{"ready":true,"opensearch":true,"postgres":true}`.
+7. `sudo k3s kubectl -n soc rollout undo deployment/api`, `rollout status`: **정상 롤백**.
+8. `jsonpath` 이미지 확인: `...:cd273e8` 복원.
+
+**관찰:** `kubectl rollout undo`는 last-applied annotation 경고를 출력했으나 롤백은 정상 완료됐다. 선언형 파일 재적용 시 이미지 태그 변경 가능성을 확인할 것.
+
+**최초 확인 명령:** `sudo k3s kubectl -n soc rollout history deployment/api` → `sudo k3s kubectl -n soc get pods` → `sudo k3s kubectl -n soc describe pod <name>`.
+
+### [8] 서버 RAG 21문항 재평가
+
+| 방식 | Recall@3 |
+|---|---:|
+| 키워드 | **0.905 (19/21)** |
+| 벡터 | **0.857 (18/21)** |
+| 하이브리드(RRF) | **0.857 (18/21)** |
+
+- `sudo k3s kubectl -n soc logs job/soc-rag-eval`로 결과 직접 확인.
+- Day2 값과 동일하여 **실험 환경 재현성을 확인**했으며, 정확도 향상은 없었다.
+- 남은 문제: OCR 미지원 스캔 PDF k10, 영문 문서 k13~k14. 09 복잡한 표 PDF는 7/7이지만 답변 추출 정확도를 증명한 것은 아니다.
+
+**범위:** 서버 앱은 현재 `KB_TOOLS=mock`·`FAKE_LLM=true` 모드를 사용한다. 실제 RAG 검색 점수 재평가와 전체 에이전트 실서비스 연동은 별개다.
