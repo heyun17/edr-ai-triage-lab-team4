@@ -82,15 +82,15 @@
 >
 > | 원 작업 | 실제 압축 실습 결과 | 빠진 완료 조건 |
 > |---|---|---|
-> | D3-1 | `soc-index-setup`·`soc-kb-ingest` Job Complete, PDF 9개 입력/KB 25청크 저장·확인 | 6-1 장애 주입·2인 진단 |
-> | D3-2 | GitHub Actions 테스트/빌드/GHCR push 성공, `752fccd` 배포 후 `cd273e8`로 롤백 | 7-1 깨진 이미지 장애 주입·2인 진단 |
+> | D3-1 | `soc-index-setup`·`soc-kb-ingest` Job Complete, PDF 9개 입력/KB 25청크 저장·확인. 별도 6-1 URL 오타 Job **Failed** 재현 후 복구 Job **Complete**, 연결 `True` 확인 | 2인 출제·진단 후 나눔 미실시. 원본 PDF 적재 Job에는 장애 미주입 |
+> | D3-2 | GitHub Actions 테스트/빌드/GHCR push 성공, `752fccd` 배포 후 `cd273e8`로 롤백. **7-1 별도 API 실습용 Deployment**에 즉시 종료 이미지 배포 → 신규 파드 Error / 기존 1/1 및 서비스 응답 유지 → 롤백 성공 | 2인 출제·진단 후 나눔 미실시. 운영 API에는 장애 미주입 |
 > | D3-5 | 조사 결과 `parent_name` 보존, 단위 테스트·CI 통과, 동일 12건 FakeLLM 정확도 10/12→12/12, 워커 이미지 `a8dc79a` 롤아웃 성공 | 교안의 2인 교차 리뷰·실제 LLM 일반화 |
 > | D3-6 | PDF 06 OCR 0→1청크(34요소), k3s OCR Job Complete, 별도 인덱스 26청크, 키워드 Recall@3 19/21→20/21 | 2인 원래 담당자 리뷰, 운영 KB 전환, Hybrid Recall 향상 |
 > | D3-8 | RAG 21문항 재평가: keyword 19/21, vector 18/21, hybrid 18/21 | Day3 에이전트 평가 재실행 |
 > | D3-9 | RAG 수치 해석과 미개선 원인·추후 과제 `DECISIONS.md`에 1인 기록 | 팀원 간 설명·질문 |
 > | D3-11 | `DEPLOYMENT.md`에 실제 실행 명령·결과 정리 | 옆 팀 교차 검증 |
 > | D3-12 | `POSTMORTEM.md`에 Day2 재현 장애(5-2) 비난 없는 5 Whys 회고 | 2인 검토 |
-> | D3-3~7, D3-10, D3-13 | 이번 압축 실습 범위에서 제외 | 원래 교안 과제 미수행 |
+> | D3-3, D3-7, D3-10, D3-13 | D3-3 Dify 및 D3-7 무작위 2인 종합 드릴, D3-10 최종 예상표, D3-13 발표는 원 교안 완료 기준 미달 | D3-4~6은 별도 행에 기록한 1인 압축 고도화이며 4개 고도화·2인 리뷰는 미실시 |
 >
 > 실측·근거: [DECISIONS](../DECISIONS.md) · [RUNBOOK](../RUNBOOK.md) · [DEPLOYMENT](../DEPLOYMENT.md) · [POSTMORTEM](../POSTMORTEM.md)
 >
