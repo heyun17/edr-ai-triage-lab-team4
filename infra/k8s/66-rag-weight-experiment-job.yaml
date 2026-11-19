@@ -1,0 +1,87 @@
+# D3-6 follow-up: isolated, read-only keyword-weighted RRF experiment.
+# Uses OCR image already imported to k3s. Does not change kb-playbooks or worker.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-rag-rrf-weights
+  namespace: soc
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-c"]
+          args:
+            - |
+            from soc.eval.rag_eval import load_questions
+            from soc.kb.search import keyword_search, vector_search
+            
+            K = 3
+            N = 10
+            RRF_K = 60
+            weights = [1.0, 1.5, 2.0, 3.0, 5.0, 10.0]
+            correct = {w: 0 for w in weights}
+            failed = {w: [] for w in weights}
+            
+            def weighted_rrf(keywords, vectors, keyword_weight):
+                scores, records = {}, {}
+                for weight, hits in ((keyword_weight, keywords), (1.0, vectors)):
+                    for rank, hit in enumerate(hits, 1):
+                        doc_id = hit["id"]
+                        scores[doc_id] = scores.get(doc_id, 0.0) + weight / (RRF_K + rank)
+                        records.setdefault(doc_id, hit)
+                order = sorted(scores, key=lambda item: (-scores[item], item))
+                return [records[doc_id] for doc_id in order[:K]]
+            
+            qs = load_questions()
+            print(f"질문 {len(qs)}개 · OCR 인덱스 · keyword:vector 가중치 실험", flush=True)
+            for q in qs:
+                kw = keyword_search(q["question"], N)
+                vec = vector_search(q["question"], N)
+                if q["id"] in ("k10", "k13", "k14"):
+                    kr = next((i for i, h in enumerate(kw, 1) if h["source"] == q["source"]), None)
+                    vr = next((i for i, h in enumerate(vec, 1) if h["source"] == q["source"]), None)
+                    print(f'{q["id"]}: keyword rank={kr}, vector rank={vr}', flush=True)
+                for w in weights:
+                    hits = weighted_rrf(kw, vec, w)
+                    success = any(h["source"] == q["source"] for h in hits)
+                    correct[w] += success
+                    if not success:
+                        failed[w].append(q["id"])
+            print("\n=== OCR 인덱스 가중 RRF Recall@3 ===")
+            for w in weights:
+                print(f'keyword:vector={w:g}:1 | {correct[w]}/{len(qs)} = {correct[w]/len(qs):.3f} | 실패: {",".join(failed[w]) or "없음"}')
+            print("주의: 이 21문항은 가중치 선택에 사용된 평가셋이므로 독립 검증이 아님.")
+            
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: INDEX_KB
+              value: "kb-playbooks-ocr"
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
