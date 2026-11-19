@@ -34,6 +34,7 @@ def summarize(e: dict) -> dict:
     p = e.get("process", {})
     out = {"event_id": e["event_id"], "ts": e["ts"], "type": e["type"],
            "pid": p.get("pid"), "ppid": p.get("ppid"), "name": p.get("name"),
+           "parent_name": p.get("parent_name"),
            "cmdline": (p.get("cmdline") or "")[:CMD_MAX], "user": p.get("user"), "signed": p.get("signed")}
     if e.get("network"):
         n = e["network"]
