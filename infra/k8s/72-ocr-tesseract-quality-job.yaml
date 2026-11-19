@@ -1,0 +1,44 @@
+# D3-6 OCR quality check: direct Tesseract at 300dpi/psm6, read-only.
+# The source README explicitly recommends this approach for PDF06.
+# Does NOT write to OpenSearch or change any deployment.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-ocr-quality-check
+  namespace: soc
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ocr-check
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              pdf=/app/data/kb/pdf/06_false_positive_guide_scanned.pdf
+              mkdir -p /tmp/ocr-quality
+              echo '=== PDF metadata ==='
+              pdfinfo "$pdf" | grep -E '^(Pages|Page size):' || true
+              echo '=== Rendering page 1 at 300dpi ==='
+              pdftoppm -f 1 -l 1 -r 300 -png -singlefile "$pdf" /tmp/ocr-quality/page
+              echo '=== Tesseract direct: kor+eng, PSM 6 ==='
+              tesseract /tmp/ocr-quality/page.png stdout -l kor+eng --psm 6 2>/dev/null | tee /tmp/ocr-quality/psm6.txt
+              echo '=== Verify k10 clue: "세 번" or "3회" ==='
+              if grep -Eq '세[[:space:]]*번|3[[:space:]]*회' /tmp/ocr-quality/psm6.txt; then
+                  echo 'ANSWER_PHRASE_FOUND'
+              else
+                  echo 'ANSWER_PHRASE_NOT_EXACTLY_FOUND: inspect text for equivalent expression'
+              fi
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1500m"
+              memory: "1Gi"
