@@ -7,6 +7,8 @@ Dify 요청: POST /dify/retrieval
 """
 from __future__ import annotations
 
+import hmac
+
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
@@ -45,7 +47,12 @@ def normalize_scores(hits: list[dict]) -> list[dict]:
 
 @router.post("/dify/retrieval")
 def retrieval(req: RetrievalRequest, authorization: str = Header(default="")):
-    if authorization != f"Bearer {settings.dify_api_key}":
+    # Never accept the example password on a real, networked deployment.
+    if settings.backend == "real" and settings.dify_api_key in {"", "change-me"}:
+        raise HTTPException(status_code=503, detail="DIFY_API_KEY 설정이 필요합니다")
+    if not settings.dify_api_key or not hmac.compare_digest(
+        authorization, f"Bearer {settings.dify_api_key}"
+    ):
         raise HTTPException(status_code=403, detail={"error_code": 1002, "error_msg": "인증 실패"})
     from ..agent.toolset import search_playbook_fn
 
