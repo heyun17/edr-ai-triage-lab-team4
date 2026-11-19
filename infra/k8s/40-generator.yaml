@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: generator
+  namespace: soc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: generator
+  template:
+    metadata:
+      labels:
+        app: generator
+    spec:
+      containers:
+        - name: generator
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "soc.simulator.run", "--loop"]
+          envFrom:
+            - configMapRef:
+                name: soc-config
+            - secretRef:
+                name: soc-secrets
+          env:
+            - name: SIM_ATTACK_EVERY_TICKS
+              value: "6"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

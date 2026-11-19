@@ -160,12 +160,14 @@ cmdline은 text로 명령어 내용을 검색하고, keyword로 전체 문자열
 - `pytest tests/test_guardrail.py -q` 실행 결과 **4 passed**로 G-1, G-2와 실패 처리 흐름을 확인했다.
 
 ### 프로브 설계표 (2일차, 인프라 4단계)
-| | API | 워커 |
-|---|---|---|
-| liveness | | |
-| readiness | | |
-| 종료 유예 | | |
 
+| 구분 | API | 워커 |
+|---|---|---|
+| liveness | /healthz, 15초마다 검사, 3회 실패 시 재시작 | /healthz, heartbeat 확인, 15초마다 검사, 5회 실패 시 재시작 |
+| readiness | /readyz, OpenSearch·PostgreSQL 연결 확인 | 생략 (외부 요청을 받지 않음) |
+| 종료 유예 | 기본 30초 | 120초, 처리 중 작업을 마칠 시간 확보 |
+
+**설계 이유:** 외부 DB 장애가 API의 반복 재시작으로 이어지지 않도록 liveness와 readiness를 분리했다.
 
 ### 평가: 기준점(2일차)과 최종(3일차)
 

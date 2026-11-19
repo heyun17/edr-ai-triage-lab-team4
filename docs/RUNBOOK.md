@@ -217,3 +217,63 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 **진단 후 나눔**
 - 2인 교차 진단은 미진행
 
+---
+
+### [4-3] 워커 중지 장애 (2026-11-19)
+
+**증상**
+- 워커를 0개로 줄이자 처리 대기(new) 알림이 0건에서 4건으로 증가
+
+**원인**
+- 알림을 처리할 워커가 없어 대기열이 누적됨
+
+**확인**
+- `kubectl -n soc get deployments`
+- API `/stats`로 상태별 알림 건수 확인
+
+**복구**
+- `kubectl -n soc scale deployment/worker --replicas=1`
+
+**결과**
+- 워커 정상 재시작
+- 처리 대기(new) 4건 → 0건
+- 처리 실패 0건
+
+**재발 방지**
+- 워커 개수와 대기 알림 건수를 함께 모니터링
+- 최초 확인 명령: `kubectl -n soc get deployment worker`
+
+**진단 후 나눔**
+- 단독 실습으로 진행, 팀원 교차 진단 미진행
+
+### [4-5] 처리 중 워커 강제 종료 (2026-11-19)
+
+**증상**
+- AI 판정 단계에서 워커 파드를 강제 삭제하여 분석 중단
+
+**확인한 로그**
+- `CHAOS_PAUSE_BEFORE_JUDGE`
+- `이어서 처리: al-c68027792a1c`
+- 저장된 단계: `judge`
+
+**원인**
+- 분석 중 워커 파드 강제 종료
+
+**복구**
+1. Kubernetes가 새 워커 파드 자동 생성
+2. 만료된 작업을 다시 가져옴
+3. PostgreSQL 체크포인트에서 judge 단계부터 재개
+4. 테스트 워커 삭제 후 기존 서비스 복구
+
+**결과**
+- 알림 상태: pending_approval
+- 처리 시도: attempts=2
+- API·Generator·Worker·OpenSearch·PostgreSQL 모두 1/1 Running
+
+**재발 방지**
+- PostgreSQL 체크포인터 유지
+- 워커 lease 및 종료 유예시간 관리
+- 최초 확인 명령: `kubectl -n soc logs deploy/worker --tail=50`
+
+**진단 후 나눔**
+- 단독 실습으로 진행, 팀원 교차 진단 미진행
