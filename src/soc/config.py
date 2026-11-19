@@ -95,6 +95,9 @@ class Settings(BaseSettings):
         "09_response_matrix_complex_tables.pdf"
     )
 
+    # 이미지 스캔 PDF는 글자 층이 없어서 OCR이 필요합니다 (D3-6).
+    kb_ocr_files: str = "06_false_positive_guide_scanned.pdf"
+
     # hi_res 좌표를 이용해 컬럼 순서를 다시 잡아야 하는 문서
     kb_two_column_files: str = (
         "05_newsletter_two_column.pdf"
