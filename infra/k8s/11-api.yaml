@@ -43,6 +43,12 @@ spec:
             httpGet:
               path: /readyz
               port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
             periodSeconds: 15
             failureThreshold: 3
 ---
