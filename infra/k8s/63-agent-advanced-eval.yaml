@@ -1,0 +1,84 @@
+# D3-5: 12 identical labeled alerts, before vs after parent_name preservation.
+# Uses in-memory OpenSearch only, so this NEVER writes to production telemetry indices.
+# FakeLLM evaluation is a regression check, not real-model accuracy.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-agent-eval-before
+  namespace: soc
+  labels:
+    app: soc-agent-eval-before
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-agent-eval-before
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: agent-eval
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "soc.eval.agent_eval", "--n", "12", "--seed", "42"]
+          env:
+            - name: BACKEND
+              value: "memory"
+            - name: TELEMETRY_TOOLS
+              value: "real"
+            - name: KB_TOOLS
+              value: "mock"
+            - name: FAKE_LLM
+              value: "true"
+            - name: CHECKPOINTER
+              value: "memory"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-agent-eval-after
+  namespace: soc
+  labels:
+    app: soc-agent-eval-after
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-agent-eval-after
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: agent-eval
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:a8dc79a
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "soc.eval.agent_eval", "--n", "12", "--seed", "42"]
+          env:
+            - name: BACKEND
+              value: "memory"
+            - name: TELEMETRY_TOOLS
+              value: "real"
+            - name: KB_TOOLS
+              value: "mock"
+            - name: FAKE_LLM
+              value: "true"
+            - name: CHECKPOINTER
+              value: "memory"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
