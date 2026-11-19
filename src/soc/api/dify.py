@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hmac
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Body, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..config import settings
@@ -46,7 +46,7 @@ def normalize_scores(hits: list[dict]) -> list[dict]:
 
 
 @router.post("/dify/retrieval")
-def retrieval(req: RetrievalRequest, authorization: str = Header(default="")):
+def retrieval(req: RetrievalRequest | None = Body(default=None), authorization: str = Header(default="")):
     # Never accept the example password on a real, networked deployment.
     if settings.backend == "real" and settings.dify_api_key in {"", "change-me"}:
         raise HTTPException(status_code=503, detail="DIFY_API_KEY 설정이 필요합니다")
@@ -54,6 +54,10 @@ def retrieval(req: RetrievalRequest, authorization: str = Header(default="")):
         authorization, f"Bearer {settings.dify_api_key}"
     ):
         raise HTTPException(status_code=403, detail={"error_code": 1002, "error_msg": "인증 실패"})
+    # Dify may probe the endpoint with an authenticated, empty POST when
+    # registering an External Knowledge API. Do not query OpenSearch for it.
+    if req is None:
+        return {"records": []}
     from ..agent.toolset import search_playbook_fn
 
     hits = normalize_scores(search_playbook_fn()(req.query, req.retrieval_setting.top_k))
