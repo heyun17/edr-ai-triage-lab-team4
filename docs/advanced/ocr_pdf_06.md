@@ -88,3 +88,11 @@
 그러나 청크 본문에는 `OF 처리 가이`, `906-60-002 - 20264 개정`, `스크립트 AB7tCAIT`처럼 **한국어 OCR 오인식과 글자 손실이 많았다**. `ExecutionPolicy Bypass=`, `ccmexec.exe` 등 일부 토큰만 살아 있다. 따라서 **OCR 처리 실행과 저장 성공은 확인되지만, 내용의 정확한 인식 및 k10 정답 문구('세 번')의 재현은 아직 확인되지 않았다**. **키워드 Recall@3 20/21은 정답 PDF의 순위에 관한 지표일 뿐 정답 추출 품질 증거가 아니다.**
 
 `data/kb/README.md`가 권고하는 직접 Tesseract `300dpi + kor+eng + --psm 6` 방법을 `infra/k8s/72-ocr-tesseract-quality-job.yaml`의 읽기 전용 Job으로 비교할 계획이다. 이 진단 Job은 인덱스를 변경하지 않는다. 결과가 확인되기 전에는 운영 인덱스에 OCR 내용을 반영하지 않는다.
+
+## 8. 직접 Tesseract OCR 개선 검증 (실험 인덱스에 적용됨)
+
+- `soc-ocr-quality-check` (72번 Job): 스캔 PDF 1쪽을 `pdftoppm -r 300`으로 렌더링한 다음 `tesseract -l kor+eng --psm 6` 수행. 결과에서 **`같은 패턴이 세 번 이상 오탐으로 종결되면`** 문장을 확인하고 `ANSWER_PHRASE_FOUND` 출력. 다만 나머지 일부 한글·영문은 오인식.
+- `soc-kb-ocr-direct-patch` (73번 Job): **594자 OCR 결과**, 정답 표현 `세 번` 확인 후 OpenAI `text-embedding-3-small` 모델로 한 청크 재임베딩. OpenSearch의 **`kb-playbooks-ocr` 인덱스 내 PDF06 청크 1개만** 텍스트와 embedding 갱신.
+- 성공 로그: `PATCH SUCCESS: production KB 25, OCR KB 26; one isolated chunk updated`. 운영 `kb-playbooks` 및 Kubernetes 운영 Deployment는 변경하지 않음.
+- **아직 미확인:** 수정된 임베딩으로 기존 21문항 Recall@3가 어떻게 변했는지. 후속 `infra/k8s/74-rag-ocr-direct-eval-job.yaml` 평가가 준비돼 있음.
+- **지속성 한계:** 이번 개선은 기존 컨테이너 내 소스 코드 전체에 반영된 새로운 적재 파이프라인이 아니라 **실험 인덱스의 1개 청크를 수동 갱신하는 Job**이다. 기존 `64-kb-ocr-job.yaml`을 재실행하면 `recreate=True`로 수정 내용이 사라질 수 있어, 정식 운영 적용을 주장할 수 없다.
