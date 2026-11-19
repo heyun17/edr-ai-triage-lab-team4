@@ -49,7 +49,7 @@ sudo k3s kubectl -n soc logs -f job/soc-dify-internal-smoke
 
 사용자가 k3s `soc`에 전용 64자 난수 Bearer Secret `soc-dify-key`를 생성했고, `infra/k8s/76-dify-kb-minimal.yaml`의 `deployment/soc-dify-kb` 및 `service/soc-dify-kb`가 생성됐다. `rollout status` 결과 **successfully rolled out**, 기존 운영 API Pod 내부의 `GET http://soc-dify-kb/healthz`는 **`{"status":"ok"}`**였다.
 
-**아직 확인할 것:** Secret의 실제 길이(64자)와 새 서비스의 미인증 POST 403 출력은 별도 검증이 필요하다. 이어서 Dify Cloud에서 외부 Knowledge API 저장 때 보내는 **빈 POST 검증 요청**을 처리하도록 `src/soc/api/dify.py`를 보강하고 회귀 테스트를 추가했다. 새 CI 이미지 반영 전 기존 `soc-dify-kb` Deployment는 그 수정을 포함하지 않는다.
+**2026-11-19 후속 실측:** `soc-dify-key`의 `DIFY_API_KEY`를 노출하지 않고 확인한 길이는 **64바이트**, 실제 `soc-dify-kb` 서비스에 인증 없는 `POST /dify/retrieval` 요청 결과는 **HTTP 403**이었다. Dify의 빈 POST 연결 검사를 지원하도록 API와 테스트를 보완한 이미지 `943abe9`의 전체 CI 성공을 확인한 뒤 `76-dify-kb-minimal.yaml`을 재적용했고, **`deployment/soc-dify-kb successfully rolled out`**를 확인했다. Dify Cloud UI 연결 자체는 아직 미실시.
 
 Dify Cloud에 연결하려면 외부 HTTPS 접근이 필요하다. 실습용 `infra/k8s/77-dify-https-tunnel-demo.yaml`은 **검색 전용 API**만 임시 공개하도록 준비됐으며, 외부 노출 위험과 사용자 계정 로그인 동작을 확인한 뒤에만 수동 적용한다.
 
