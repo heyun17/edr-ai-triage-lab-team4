@@ -349,7 +349,7 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 
 ## Day3 압축 실습: Job 적재, CI/CD 및 평가 (2026-11-19, 1인 기록)
 
-> 아래는 장애 주입 기록이 아니라 **정상 배포 및 운영 검증 기록**이다. 교안 필수 깨 보기 6-1(Job 접속 주소 오류), 7-1(깨진 이미지 배포)은 시간상 수행하지 않았다.
+> 정상 배포 및 운영 검증을 먼저 수행한 뒤, **6-1(잘못된 OpenSearch URL)과 7-1(즉시 종료되는 이미지 배포) 장애를 각각 격리 리소스에서 재현·복구**했다. 원래 운영 인덱스와 `deployment/api`에는 장애를 주입하지 않았다.
 
 ### [6] OpenSearch Setup Job + PDF 적재 Job
 
@@ -395,6 +395,33 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 **관찰:** `kubectl rollout undo`는 last-applied annotation 경고를 출력했으나 롤백은 정상 완료됐다. 선언형 파일 재적용 시 이미지 태그 변경 가능성을 확인할 것.
 
 **최초 확인 명령:** `sudo k3s kubectl -n soc rollout history deployment/api` → `sudo k3s kubectl -n soc get pods` → `sudo k3s kubectl -n soc describe pod <name>`.
+
+### [7-1] 깨진 이미지 배포 시 구버전 유지 및 롤백 (2026-11-19)
+
+**환경/격리:** Kubernetes `soc` namespace의 **전용 실습 리소스 `deployment/soc-api-rollout-chaos`와 `service/soc-api-rollout-chaos`**. 실제 `deployment/api`와 `service/api`는 변경하지 않았다. `replicas: 1`, RollingUpdate `maxSurge: 1`·`maxUnavailable: 0`.
+
+**정상 기준점**
+1. `infra/k8s/70-rollout-chaos-safe.yaml` 적용: Deployment·Service 생성.
+2. `kubectl rollout status deployment/soc-api-rollout-chaos --timeout=180s` → `successfully rolled out`.
+3. 운영 API 파드에서 실습용 서비스 `http://soc-api-rollout-chaos/healthz` 조회 → `{"status":"ok","backend":"real"}`.
+
+**장애 주입 및 진단**
+1. `infra/k8s/71-rollout-chaos-broken.yaml` 적용: 새 파드에 `busybox:1.36`, 명령 `sh -c "echo 'Intentional D3-2 7-1 crash'; exit 1"` 적용.
+2. `kubectl get pods -l app=soc-api-rollout-chaos` → 기존 `soc-api-rollout-chaos-5dd4fbfc7c-bpnbs` **1/1 Running**, 신규 `soc-api-rollout-chaos-747cfd7594-j4ttf` **0/1 Error**.
+3. 장애 중 서비스 `GET /healthz` → **200 정상 본문** `{"status":"ok","backend":"real"}` 유지.
+4. `kubectl logs pod/soc-api-rollout-chaos-747cfd7594-j4ttf --previous --tail=20` → `Intentional D3-2 7-1 crash` 확인.
+
+**복구 및 검증**
+1. `kubectl rollout undo deployment/soc-api-rollout-chaos` → `rolled back`.
+2. `kubectl rollout status deployment/soc-api-rollout-chaos --timeout=180s` → `successfully rolled out`.
+3. `kubectl get pods -l app=soc-api-rollout-chaos` → 정상 구버전 파드 **1/1 Running, 재시작 0** 하나만 남음.
+4. 실습용 서비스 `GET /healthz` → `{"status":"ok","backend":"real"}` 계속 정상.
+
+**원인:** 새 버전의 컨테이너 프로세스가 시작 즉시 종료하여 준비 상태에 도달하지 못했다. `maxUnavailable: 0`으로 정상 구버전 replica가 유지돼 실습용 Service의 응답이 보존됐다.
+
+**재발 방지 / 최초 확인:** `kubectl -n soc get pods -l app=soc-api-rollout-chaos` → `kubectl -n soc logs <새 파드> --previous` → `kubectl -n soc rollout status deployment/soc-api-rollout-chaos` → 정상판으로 `rollout undo`. 실서비스는 단계별 readiness 및 안전한 rollout 정책 필요.
+
+**주의:** `kubectl rollout undo` 시 `kubectl.kubernetes.io/last-applied-configuration` 관련 경고가 나왔으나 롤백 성공했다. 차후 `kubectl apply`로 **깨진 71번 YAML을 재적용하지 않도록** 관리한다. 실습용 리소스는 완료 뒤 별도 삭제할 수 있다. 2인 교차 진단은 미실시.
 
 ### [8] 서버 RAG 21문항 재평가
 
