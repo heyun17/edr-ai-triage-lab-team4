@@ -212,6 +212,14 @@ cmdline은 text로 명령어 내용을 검색하고, keyword로 전체 문자열
 - 압축 일정으로 필수 장애 주입 **6-1 및 7-1은 수행하지 않았음**. 성공적인 정상 배포/롤백과 장애 주입 검증을 혼동하지 않는다.
 
 
+### Day3 장애 주입 6-1·7-1 실제 확인 (2026-11-19)
+
+- **6-1:** 운영 적재 Job과 분리된 연결 검사 Job에서 `OPENSEARCH_URL=http://opensearhc:9200` 오타 주입 → `OpenSearch reachable: False`, **Job Failed 0/1 (43초)** 확인. `http://opensearch:9200` 정상 URL의 별도 복구 Job은 **Complete**, `OpenSearch reachable: True`.
+- **7-1:** 운영 API와 분리된 `deployment/soc-api-rollout-chaos`에서 정상 API `1/1 Running` 및 `/healthz` 확인 후, 의도적으로 즉시 종료되는 `busybox:1.36` 새 파드 배포. 신버전 **0/1 Error**·구버전 **1/1 Running**, 장애 중 `/healthz` 계속 정상. 새 파드 이전 로그 `Intentional D3-2 7-1 crash` 확인.
+- **복구:** `rollout undo` 및 `rollout status` 성공, 정상 구버전 파드 1/1·API 정상 응답 유지. `last-applied-configuration` 경고는 롤백 실패가 아니지만 이후 `kubectl apply` 재적용 주의.
+- **원래 교안과 차이:** 팀원 간 예고 없는 장애 출제·교차 진단은 수행하지 않았음. 원본 실제 PDF 적재 및 운영 API에는 장애를 주입하지 않은 안전한 **1인 격리 실습**.
+- 증거: [RUNBOOK 6-1·7-1](RUNBOOK.md) 및 [Day3 고장 예상표](advanced/day3_failure_predictions.md).
+
 ### Day3 D3-5 실제 개선 측정 (2026-11-19)
 
 - `soc-agent-eval-before` / `soc-agent-eval-after`는 운영 인덱스에 데이터를 쓰지 않는 별도 메모리 평가 Job이다.
