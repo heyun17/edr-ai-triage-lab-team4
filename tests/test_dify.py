@@ -39,3 +39,17 @@ def test_public_example_key_is_disabled_in_real_backend(monkeypatch):
         json={"query": "격리 승인권자"}
     )
     assert response.status_code == 503
+
+
+def test_dify_connection_probe_with_empty_body():
+    # Some Dify versions validate an External Knowledge API via empty POST.
+    c = TestClient(app)
+    unauthorized = c.post("/dify/retrieval", content=b"")
+    assert unauthorized.status_code == 403
+    authorized = c.post(
+        "/dify/retrieval",
+        headers={"Authorization": "Bearer change-me"},
+        content=b"",
+    )
+    assert authorized.status_code == 200
+    assert authorized.json() == {"records": []}
