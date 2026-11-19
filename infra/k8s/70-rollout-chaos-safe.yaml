@@ -1,0 +1,74 @@
+# D3-2 / 7-1 - isolated API rollout drill. Does NOT change deployment/api or svc/api.
+# Explicit maxUnavailable=0 keeps one healthy old replica when new image crashes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soc-api-rollout-chaos
+  namespace: soc
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: soc-api-rollout-chaos
+  template:
+    metadata:
+      labels:
+        app: soc-api-rollout-chaos
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: soc-config
+            - secretRef:
+                name: soc-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: soc-api-rollout-chaos
+  namespace: soc
+spec:
+  type: ClusterIP
+  selector:
+    app: soc-api-rollout-chaos
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
