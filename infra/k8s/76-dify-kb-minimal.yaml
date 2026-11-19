@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: dify-kb
-          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:2712708
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:943abe9
           imagePullPolicy: IfNotPresent
           command: ["uvicorn", "soc.api.dify_only:app", "--host", "0.0.0.0", "--port", "8000"]
           ports:
