@@ -139,3 +139,12 @@ python -m pytest tests/test_graph_skeleton.py -q
 ```
 
 > D1-13 설계용 그래프와 D1-14 실행 결과는 구분해 기록합니다. D1-15 티치백은 `docs/teachback/day1.md`에 완료 기록했으며, Day2 실제 근거 검증 및 사람 승인은 별도 범위입니다.
+
+## 2026-11-19 현재 기능 상태 참고
+
+이 문서는 주로 **Day1 설계/뼈대 구현 시점**(2026-11-18)을 설명한다. 위에 등장하는 승인 노드의 `not_implemented` 설명은 **Day1 당시의 과제 상태**를 의미하며 현재 코드의 상태가 아니다.
+
+- **Day2 구현 완료:** `src/soc/agent/nodes.py`의 위험 조치 `interrupt()`, `src/soc/agent/checkpoint.py`의 PostgreSQL 저장·재개 기능. Day2 실습에서 거절 승인 결과가 `completed`로 기록된 사례와 워커 강제 종료 후 재개를 확인했다.
+- **Day3:** `parent_name` 맥락 보존(합성 12건 FakeLLM 정확도 10/12→12/12), Kubernetes Worker 롤아웃. 실제 LLM 전체 정확도는 미평가다.
+- **현재 운영 설정:** `KB_TOOLS=mock`, `FAKE_LLM=true` 상태를 사용한 실습이므로 진짜 LLM+RAG 전체 흐름이 운영으로 전환됐다고 주장하지 않는다.
+- 최종 상태와 미수행 항목은 [강사 확인용 최종 인계](FINAL_HANDOFF_2026-11-19.md) 참조.
