@@ -1,0 +1,55 @@
+# D3-6: OCR-enhanced PDF ingestion into an ISOLATED comparison index.
+# Index name is intentionally distinct; the existing kb-playbooks (25 docs) is preserved.
+# Requires local Dockerfile.kb image kb-ocr-day3-20261119 imported on the k3s node.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-kb-ocr-ingest
+  namespace: soc
+  labels:
+    app: soc-kb-ocr-ingest
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-kb-ocr-ingest
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kb-ocr-ingest
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "soc.kb.ingest"]
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: INDEX_KB
+              value: "kb-playbooks-ocr"
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+            - name: KB_PDF_DIR
+              value: "/app/data/kb/pdf"
+            - name: CHUNK_MAX_CHARACTERS
+              value: "800"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2500m"
+              memory: "6Gi"
