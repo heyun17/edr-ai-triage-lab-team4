@@ -16,7 +16,7 @@
 | DIFY-1 점수 정규화 | **코드 구현** | 최대 점수를 1.0, 나머지를 비율에 따라 0~1로 변환 |
 | 인증 실패 403 및 성공 조회/임계치 테스트 | **단위·통합 테스트 작성** | `tests/test_dify.py` |
 | CI 필수 테스트 포함 | **성공 확인** | [Actions 성공 44479065202](https://github.com/heyun17/edr-ai-triage-lab-team4/actions/runs/44479065202), SHA `27bbe52`, 전체 테스트 포함 |
-| k3s 실제 OCR 인덱스를 통한 검색 | **별도 내부 스모크 테스트 예정** | `infra/k8s/75-dify-internal-smoke-job.yaml` |
+| k3s 실제 OCR 인덱스를 통한 검색 | **성공 확인** | `soc-dify-internal-smoke`: 미인증 403, 인증 200, OpenSearch 200, OpenAI 임베딩 200, 3개 PDF 반환 |
 | Dify Cloud UI External Knowledge API 등록 | **미실시** | 사용자 로그인·안전한 HTTPS 엔드포인트 필요 |
 | Dify 앱 실제 질의·우리 에이전트 리포트 비교 | **미실시** | Dify UI 연결 완료 후 비교해야 함 |
 
@@ -34,6 +34,16 @@
 curl -fsSL https://raw.githubusercontent.com/heyun17/edr-ai-triage-lab-team4/main/infra/k8s/75-dify-internal-smoke-job.yaml | sudo k3s kubectl apply -f -
 sudo k3s kubectl -n soc logs -f job/soc-dify-internal-smoke
 ```
+
+## 2026-11-19 서버 검증 결과 — 직접 관찰
+
+- `soc-dify-internal-smoke` 로그: `Missing bearer token: 403`, 인증 요청 `Authorized retrieval HTTP status: 200`.
+- OpenSearch `kb-playbooks-ocr/_search` 200, OpenAI `/v1/embeddings` 200.
+- `Retrieved records: 3`; 반환한 출처는 `01_response_policy_tables.pdf`(score 1.0), `03_playbook_ransomware_header_footer.pdf`(약 0.9694), `04_playbook_macro_powershell_code.pdf`(약 0.9685).
+- 마지막 로그 `DIFY BACKEND CONTRACT PASS (internal Job; NOT Dify Cloud UI)`.
+- **이 시점에서 D3-3 API 백엔드 계약은 실제 데이터로 검증**, Dify Cloud 외부 서비스 연결과 LLM 답변 비교는 여전히 미확인.
+
+실제 앱의 `deployment/api`는 이전 이미지와 `KB_TOOLS=mock` 설정을 유지하므로, Dify와 연결하려면 **별도 제한된 API 서비스**를 만들어야 한다. 운영 API를 통째로 외부에 노출하면 보안 알림·승인 엔드포인트도 노출될 수 있어 `src/soc/api/dify_only.py`(retrieval + healthz만 노출)와 `infra/k8s/76-dify-kb-minimal.yaml`(비공개 ClusterIP, 전용 DIFY_API_KEY Secret)을 추가했다. Cloud Dify와 연결하려면 향후 사용자 허락하에 임시 HTTPS 접근을 설정한다.
 
 ## API 계약
 
