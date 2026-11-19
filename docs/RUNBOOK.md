@@ -180,3 +180,40 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 
 **다음에 같은 장애가 발생하면 처음 확인할 명령**
 `sudo k3s kubectl -n soc logs opensearch-0 --tail=50`
+
+
+---
+
+### [3-2] PostgreSQL 비밀번호 인증 장애 (2026-11-19)
+
+**증상**
+- API 신규 파드가 Running이지만 0/1 상태
+- PostgreSQL 연결 실패
+
+**원인**
+- PostgreSQL은 기존 비밀번호로 초기화되어 있는데
+  Secret의 비밀번호만 변경해 인증 불일치 발생
+
+**확인한 오류**
+- FATAL: password authentication failed for user "soc"
+
+**복구**
+1. 원래 Secret 복구
+2. API Deployment 재시작
+3. /readyz 재확인
+
+**결과**
+- API Deployment 정상 롤아웃
+- ready=true
+- opensearch=true
+- postgres=true
+- 체크포인트 테이블 4개 확인
+
+**재발 방지**
+- PostgreSQL 비밀번호와 Secret을 일치시킨다.
+- Secret 변경 후 관련 파드를 재시작하고 /readyz를 확인한다.
+- 최초 진단 시 API 로그와 PostgreSQL 인증 오류부터 확인한다.
+
+**진단 후 나눔**
+- 2인 교차 진단은 미진행
+

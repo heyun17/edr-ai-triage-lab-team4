@@ -1,3 +1,4 @@
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,18 +16,16 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:stage1
-          imagePullPolicy: Always
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8000
-          env:
-            - name: BACKEND
-              value: "memory"
-            - name: CHECKPOINTER
-              value: "memory"
-            - name: FAKE_LLM
-              value: "true"
+          envFrom:
+            - configMapRef:
+                name: soc-config
+            - secretRef:
+                name: soc-secrets
           resources:
             requests:
               cpu: "100m"
@@ -42,7 +41,7 @@ spec:
             failureThreshold: 24
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: http
             periodSeconds: 5
 ---
