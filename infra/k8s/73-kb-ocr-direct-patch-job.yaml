@@ -1,0 +1,114 @@
+# Day3 advanced OCR: patch only one document in the isolated experimental KB.
+# Requires previously imported kb-ocr-day3 image; does not rebuild any image.
+# Uses exact k10 phrase to block a corrupt OCR overwrite, and re-embeds the text.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-kb-ocr-direct-patch
+  namespace: soc
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ocr-patch
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-c"]
+          args:
+            - |
+              """Patch only the isolated OCR comparison index with direct Tesseract text."""
+              from pathlib import Path
+              from tempfile import TemporaryDirectory
+              import subprocess
+
+              from soc.kb.embed import embed_texts
+              from soc.osclient import get_client
+
+              INDEX = "kb-playbooks-ocr"
+              PRODUCTION_INDEX = "kb-playbooks"
+              SOURCE = "06_false_positive_guide_scanned.pdf"
+              PDF = Path("/app/data/kb/pdf") / SOURCE
+
+              client = get_client()
+              before_prod = client.count(index=PRODUCTION_INDEX)["count"]
+              before_exp = client.count(index=INDEX)["count"]
+              assert before_prod == 25 and before_exp == 26, (
+                  f"Unexpected index counts: production={before_prod}, comparison={before_exp}"
+              )
+
+              hits = client.search(
+                  index=INDEX,
+                  body={
+                      "size": 5,
+                      "query": {"term": {"source": SOURCE}},
+                      "_source": ["source", "page", "chunk_index", "text"],
+                  },
+              )["hits"]["hits"]
+              assert len(hits) == 1, f"Expected exactly one scanned-PDF chunk, got {len(hits)}"
+              hit = hits[0]
+
+              with TemporaryDirectory(prefix="edr-ocr-") as tmp:
+                  stem = str(Path(tmp) / "page")
+                  subprocess.run(
+                      ["pdftoppm", "-f", "1", "-l", "1", "-r", "300",
+                       "-png", "-singlefile", str(PDF), stem],
+                      check=True, capture_output=True, text=True,
+                  )
+                  result = subprocess.run(
+                      ["tesseract", stem + ".png", "stdout", "-l", "kor+eng",
+                       "--psm", "6"],
+                      check=True, capture_output=True, text=True,
+                  )
+                  clean = "\n".join(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+              assert "세 번" in clean, "Exact k10 answer '세 번' is missing; aborting write"
+              assert len(clean) >= 200, f"Suspiciously short OCR result: {len(clean)}"
+              print(f"Direct Tesseract: {len(clean)} characters; answer phrase '세 번' found", flush=True)
+              print("OCR excerpt:", clean[-230:], flush=True)
+              print("Re-embedding this one corrected chunk via text-embedding-3-small...", flush=True)
+              vector = embed_texts([clean])[0]
+              assert len(vector) == 1536, f"Expected 1536 dimensions, got {len(vector)}"
+
+              # Only modify the document in the isolated OCR index; keep id and metadata.
+              client.update(
+                  index=INDEX,
+                  id=hit["_id"],
+                  body={"doc": {"text": clean, "embedding": vector}},
+                  refresh=True,
+              )
+              saved = client.get(index=INDEX, id=hit["_id"])["_source"]
+              assert saved["text"] == clean and saved["source"] == SOURCE
+              after_prod = client.count(index=PRODUCTION_INDEX)["count"]
+              after_exp = client.count(index=INDEX)["count"]
+              assert after_prod == before_prod and after_exp == before_exp
+              print(f"PATCH SUCCESS: production KB {after_prod}, OCR KB {after_exp}; one isolated chunk updated", flush=True)
+              print("Production retrieval index and running deployments were NOT changed.", flush=True)
+
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"
