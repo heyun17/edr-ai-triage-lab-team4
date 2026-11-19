@@ -1,0 +1,90 @@
+# Read-only diagnosis of weighted RRF versus BM25, with per-query rankings.
+# All operations use a separate OCR index; production index is unchanged.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-rag-fusion-diagnostics
+  namespace: soc
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: diagnose
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-c"]
+          args:
+            - |
+              from soc.eval.rag_eval import load_questions
+              from soc.kb.search import keyword_search, vector_search
+
+              K = 3
+              N = 10
+              RRF_K = 60
+              weights = [1, 10, 30, 100, 1000]
+              scores = {"keyword": 0, "vector": 0}
+              for weight in weights:
+                  scores[f"rrf_{weight}"] = 0
+
+              def fuse(kw, vec, weight):
+                  totals = {}
+                  hits = {}
+                  for multiplier, rows in ((weight, kw), (1, vec)):
+                      for rank, hit in enumerate(rows, 1):
+                          doc_id = hit["id"]
+                          totals[doc_id] = totals.get(doc_id, 0) + multiplier / (RRF_K + rank)
+                          hits.setdefault(doc_id, hit)
+                  order = sorted(totals, key=lambda doc_id: (-totals[doc_id], doc_id))
+                  return [dict(hits[doc_id], rrf_score=round(totals[doc_id], 6)) for doc_id in order]
+
+              for q in load_questions():
+                  kw = keyword_search(q["question"], N)
+                  vec = vector_search(q["question"], N)
+                  expected = q["source"]
+                  if any(h["source"] == expected for h in kw[:K]):
+                      scores["keyword"] += 1
+                  if any(h["source"] == expected for h in vec[:K]):
+                      scores["vector"] += 1
+                  for weight in weights:
+                      if any(h["source"] == expected for h in fuse(kw, vec, weight)[:K]):
+                          scores[f"rrf_{weight}"] += 1
+                  if q["id"] in ("k10", "k13", "k14"):
+                      print(f"\n[{q['id']}] expected {expected}", flush=True)
+                      for mode, arr in [("keyword", kw[:5]), ("vector", vec[:5]), ("rrf_10", fuse(kw, vec, 10)[:5]), ("rrf_100", fuse(kw, vec, 100)[:5]), ("rrf_1000", fuse(kw, vec, 1000)[:5])]:
+                          print(f" {mode}: " + " | ".join(f"{h['source'][:2]}:{h.get('rrf_score', h.get('score')):.4f}" for h in arr), flush=True)
+
+              print("\n=== 21-question Recall@3 (OCR index) ===", flush=True)
+              for key, hits in scores.items():
+                  print(f"{key:9s} {hits}/21 = {hits/21:.3f}", flush=True)
+              print("NOTE: Same 21 test questions as development; do not claim holdout validation.", flush=True)
+
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: INDEX_KB
+              value: "kb-playbooks-ocr"
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
