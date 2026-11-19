@@ -1,0 +1,38 @@
+# D3-3 OPTION, NOT AUTOMATICALLY APPLIED.
+# WARNING: This starts a temporary PUBLIC HTTPS URL to service/soc-dify-kb.
+# That service deliberately exposes ONLY /dify/retrieval (Bearer-key protected)
+# and /healthz, not alerts/approvals. Use only with mock lab documents.
+# Stop immediately after demo:
+#   sudo k3s kubectl -n soc delete deployment soc-dify-https-tunnel
+# Quick Tunnels are development-only; the public URL is not stable.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soc-dify-https-tunnel
+  namespace: soc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: soc-dify-https-tunnel
+  template:
+    metadata:
+      labels:
+        app: soc-dify-https-tunnel
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --url
+            - http://soc-dify-kb.soc.svc.cluster.local:80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
