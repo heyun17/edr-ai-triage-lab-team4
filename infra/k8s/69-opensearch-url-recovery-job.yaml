@@ -1,0 +1,49 @@
+# D3-1, failure injection 6-1: recovery with correct OpenSearch endpoint; expected Complete.
+# Safe: only calls OpenSearch ping(), never creates/drops/updates KB indices.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-opensearch-url-recovery
+  namespace: soc
+  labels:
+    app: soc-opensearch-url-recovery
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 150
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-opensearch-url-recovery
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: check
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-c"]
+          args:
+            - |
+              from soc.osclient import get_client
+              from soc.config import settings
+              print("OPENSEARCH_URL:", settings.opensearch_url, flush=True)
+              try:
+                  ok = get_client().ping()
+              except Exception as exc:
+                  print(f"Connectivity error: {type(exc).__name__}: {exc}", flush=True)
+                  raise SystemExit(1)
+              print(f"OpenSearch reachable: {ok}", flush=True)
+              if not ok:
+                  raise SystemExit(1)
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              value: "http://opensearch:9200"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
