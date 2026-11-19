@@ -1,0 +1,46 @@
+# D3-6 — 스캔 PDF OCR 고도화 (2026-11-19)
+
+**실습 방식:** 1인 압축 실습, 📘 문서·검색 영역. 상대 담당자의 상호 리뷰는 미실시.
+
+## 1. 문제와 목표
+
+기존 `06_false_positive_guide_scanned.pdf`는 이미지 스캔본으로 `fast` 파싱 시 **요소 0개·청크 0개**였다. 평가 질문 **k10**(동일 패턴의 오탐이 몇 번 종결되면 룰 예외 등록을 요청하는가?)에서 정답 PDF를 Recall@3 상위 3개에 포함하지 못했다.
+
+목표: `ocr_only` 파싱을 적용하여 스캔 PDF를 청킹·임베딩·검색 가능하게 만들고, 기존 동일 21문항 평가로 결과를 확인한다.
+
+## 2. 구현
+
+- `src/soc/config.py`: `KB_OCR_FILES=06_false_positive_guide_scanned.pdf` 기본값 추가.
+- `src/soc/kb/parse.py`: `choose_strategy()`가 지정 스캔 PDF에 `ocr_only`를 선택하도록 변경. 직접 `strategy`를 지정하면 그 값을 우선한다.
+- `tests/test_kb_ocr_strategy.py`: 스캔본 OCR 선택, 일반 문서 fast 유지, 복잡 표 hi_res 유지 및 명시적 override 확인 테스트.
+- `Dockerfile.kb`: 기존 Tesseract(`tesseract-ocr`, `tesseract-ocr-kor`) 포함 이미지로 신규 코드 빌드.
+- `infra/k8s/64-kb-ocr-job.yaml`: 원본 `kb-playbooks`와 분리된 `kb-playbooks-ocr` 실험 인덱스에 PDF 적재.
+- `infra/k8s/65-rag-ocr-eval-job.yaml`: 같은 OCR 인덱스에서 21문항 검색 평가.
+
+> **데이터 보존:** `soc.kb.ingest`는 지정된 인덱스를 `recreate=True`로 재생성한다. 따라서 실험은 `INDEX_KB=kb-playbooks-ocr`로 분리했고, 기존 운영 `kb-playbooks` 25개 청크는 삭제하지 않았다.
+
+## 3. 실제 서버 결과
+
+- 이미지 `ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-ocr-day3-20261119`를 Windows Docker Desktop에서 빌드, 약 900MB tar 전송, k3s containerd 등록 확인(`linux/amd64`).
+- `soc-kb-ocr-ingest`: **Complete 1/1**, 실행 77초.
+- 06번 PDF: **요소 0 → 34**, **청크 0 → 1** (OCR 구간 5.1초).
+- 전체 PDF 청크: **25 → 26**.
+- `soc-rag-ocr-eval`에서 기존 **21개 질문·Recall@3**으로 측정.
+
+| 검색 방식 | OCR 전 | OCR 후 | 변화 |
+|---|---:|---:|---|
+| 키워드(BM25) | 0.905 (19/21) | **0.952 (20/21)** | **+0.047, 약 +4.8%p** |
+| 벡터 | 0.857 (18/21) | 0.857 (18/21) | 0 |
+| 하이브리드(RRF) | 0.857 (18/21) | 0.857 (18/21) | 0 |
+
+- **k10:** OCR 전 3방식 모두 실패 → OCR 후 **키워드만 성공**, 벡터·하이브리드는 계속 실패.
+- k13은 키워드만 성공, k14는 모든 방식 실패. 복잡 표 09번 PDF(k15~k21)는 7/7 검색 성공 유지.
+- **의미:** OCR 적용으로 PDF 검색 가능성 자체가 개선됐다. 다만 하이브리드 검색은 Keyword/Vector 순위를 동등 가중 RRF로 합치므로, 키워드의 성공을 최종 Top3에 반영하지 못했다.
+- **한계:** Recall@3은 정답 *문서*가 Top 3에 들어왔는지 확인하며, 질문의 정답 문구가 정확히 추출되었는지 자체를 평가하지 않는다. 벡터·하이브리드 실패는 OCR 자체 실패와 구분한다.
+
+## 4. 추가 실험 및 후속 과제
+
+1. 동등 가중 RRF(`1:1`) 대신 Keyword 비중을 높인 RRF를 **별도 평가 Job**에서 실험해 k10 및 전체 검색 성능을 비교한다.
+2. 개선될 경우 새로운 질문 묶음에서도 성능을 확인한 후 운영 적용 여부를 결정한다. 기존 21문항에 맞춘 가중치 최적화는 과적합 위험이 있다.
+3. OCR 정확도를 검증하려면 06번의 실제 추출 텍스트 중 '세 번' 등 정답 표현 포함 여부를 별도로 점검한다.
+4. Kubernetes 앱의 `KB_TOOLS=mock` / `FAKE_LLM=true`는 기존 상태 그대로이며, **실제 RAG 에이전트 엔드투엔드 연동은 완료하지 않았다.**
