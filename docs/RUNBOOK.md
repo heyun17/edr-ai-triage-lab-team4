@@ -311,3 +311,35 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 
 **고장 예상표 비교**
 - 예상한 이미지 다운로드 실패 장애(`ErrImagePull`)와 실제 증상이 일치함
+
+---
+
+## D2-16. 고장 예상표와 실제 깨 보기 결과 비교 (2026-11-19, 1인 정리)
+
+**비교 근거:** 이 RUNBOOK의 장애 실습 기록, `docs/DECISIONS.md`의 PDF 03·06·09 사전 예상 및 파싱 관찰, `docs/guide/INFRA_STAGES.md`의 각 장애별 예상 단서. 별도의 개인 사전 예상표 원본은 저장소에서 확인되지 않아, 인프라 장애의 '예상' 칸은 **개인이 사전에 예측했다고 주장하지 않고 교안의 예상 증상**으로 표시한다.
+
+| 실습 | 예상 증상/위험(출처) | 실제 관찰 | 비교 |
+|---|---|---|---|
+| 0-2 Compose 포트 충돌 | 호스트 포트 중복 시 시작 실패(교안) | `Bind for 127.0.0.1:5432 failed: port is already allocated`; 포트 수정 후 시작 | 일치 |
+| 1-1 이미지 태그 오류 | `ErrImagePull` 또는 `ImagePullBackOff`(교안) | `ErrImagePull`; `busybox:1.36`으로 변경 후 롤아웃 성공 | 일치 |
+| 2-1 OpenSearch 커널 설정 | `vm.max_map_count`를 낮추면 시작 실패/`CrashLoopBackOff`(교안) | 65530으로 변경하고 파드를 재생성했으나 1/1 Running, 관련 오류 미관찰; 262144로 복구 | **불일치 / 장애 미재현** |
+| 3-2 PostgreSQL Secret 불일치 | 인증 실패로 API 준비 상태 실패(교안) | `FATAL: password authentication failed for user "soc"`; Secret 복구·API 재시작 후 `/readyz` 정상 | 일치 |
+| 4-3 워커 중지 | 새 알림 누적(교안) | `new` 알림 0건→4건, 워커 복원 후 0건 | 일치 |
+| 4-5 분석 중 워커 강제 종료 | 처리 중단 뒤 저장 상태로 재개(교안) | `judge` 체크포인트에서 재개, `pending_approval` 확인. 이후 외부 거절 요청 후 `decision=rejected, status=completed` 확인 | 일치 |
+| 5-2 Ingress Service selector 오타 | 연결 대상 소실로 502(교안) | EndpointSlice 대상 없음, 실제 HTTP **503**; selector 복구 후 200 | 원인은 일치, 상태 코드는 다름 |
+
+### 사전 PDF 고장 예상과 실제 비교 (DECISIONS 기록 기반)
+
+| PDF | 기록된 사전 예상 | 실제 확인 | 비교 |
+|---|---|---|---|
+| 03 | 본문/청크 분할 문제 | `fast` 파싱 시 Header 4개, Footer 2개 확인. 반복 머리말·꼬리말 필터 적용 | 관련 문제 관찰, 예상한 청크 오류와 정확히 동일한지는 불확실 |
+| 06 | 스캔 PDF에서 텍스트 추출 실패 | `fast` 결과 요소 0개, OCR 미적용 | 일치 |
+| 09 | 복잡한 표 구조 손상 | `fast` 결과 237요소(Title 128), `hi_res` 결과 19요소·Table 5개 | 구조 손상은 일치, 가로 페이지가 직접 원인인지는 미확인 |
+
+### 장애에서 배운 첫 확인 순서
+1. 파드 이상: `sudo k3s kubectl -n soc get pods` → `sudo k3s kubectl -n soc describe pod <파드명>` (Events 확인)
+2. 실행 중 오류: `sudo k3s kubectl -n soc logs <파드명> --tail=50`
+3. Ingress 502/503: `sudo k3s kubectl -n soc get endpointslices -l kubernetes.io/service-name=api`
+4. API 준비 상태: 외부 `GET /readyz` 응답의 OpenSearch·PostgreSQL 연결 여부 확인
+
+**결론:** 장애 재현 및 정상 복구는 대부분 기록으로 확인된다. 2-1은 반복 시도에도 예상 장애가 발생하지 않아 **미재현**으로 남긴다. 본 비교는 1인 정리이며 팀원 간 진단 후 나눔을 수행했다고 주장하지 않는다.
