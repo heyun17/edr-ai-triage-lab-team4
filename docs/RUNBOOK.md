@@ -277,3 +277,37 @@ kubectl -n soc get events --sort-by=.lastTimestamp | tail -20
 
 **진단 후 나눔**
 - 단독 실습으로 진행, 팀원 교차 진단 미진행
+
+### [1-1] Docker 이미지 태그 오류 (2026-11-19)
+
+**증상**
+- 테스트용 Deployment 생성 후 파드가 `0/1 ErrImagePull` 상태로 표시됨
+
+**확인 명령과 결과**
+- `kubectl -n soc get pods -l app=d2-image-tag-test`
+- `kubectl -n soc describe pod -l app=d2-image-tag-test`
+- 이벤트: `Error: ErrImagePull`
+
+**원인**
+- 존재하지 않는 Docker 이미지 태그 `busybox:tag-does-not-exist-d2` 사용
+
+**복구**
+1. 이미지 태그를 `busybox:1.36`으로 변경
+2. 테스트 컨테이너 실행 명령을 `sleep 3600`으로 설정
+3. Deployment 롤아웃 정상 완료 확인
+4. 실습용 Deployment 삭제
+
+**결과**
+- `deployment "d2-image-tag-test" successfully rolled out`
+- 기존 API 및 데이터베이스 정상 유지
+
+**재발 방지**
+- 배포 전 이미지 이름과 태그가 실제 존재하는지 확인
+- 장애 발생 시 파드 상태보다 `describe`의 Events를 먼저 확인
+- 최초 확인 명령: `kubectl -n soc describe pod <파드명>`
+
+**진단 후 나눔**
+- 단독 실습 진행, 팀원 교차 진단 미진행
+
+**고장 예상표 비교**
+- 예상한 이미지 다운로드 실패 장애(`ErrImagePull`)와 실제 증상이 일치함
