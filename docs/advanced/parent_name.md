@@ -38,7 +38,7 @@ Day2 동일 12개 합성 알림(FakeLLM) 평가에서 정상 IT 관리 스크립
 ## 서버 반영 상태
 
 - 평가 Job의 새 이미지 `a8dc79a` 실행 및 점수 확인: **완료**
-- 상시 실행 중인 Worker Deployment에 새 이미지 배포·롤백 가능 여부: **별도 확인 필요** (평가 Job 실행과 운영 Worker 배포는 다른 작업)
+- 상시 실행 중인 Worker Deployment 업데이트: `sudo k3s crictl pull ghcr.io/heyun17/edr-ai-triage-lab-team4:a8dc79a` 성공, `kubectl set image deployment/worker ...:a8dc79a` 성공, `kubectl rollout status deployment/worker --timeout=180s`에서 **successfully rolled out** 확인. 기존 워커 이미지에 대한 롤백은 아직 시험하지 않았다.
 
 ## 설명할 수 있어야 할 점
 
