@@ -26,3 +26,16 @@ def test_retrieval_endpoint():
     assert r.status_code == 200
     recs = r.json()["records"]
     assert recs and recs[0]["score"] == 1.0 and recs[0]["title"].endswith(".pdf")
+
+
+def test_public_example_key_is_disabled_in_real_backend(monkeypatch):
+    from soc.config import settings
+    monkeypatch.setattr(settings, "backend", "real")
+    monkeypatch.setattr(settings, "dify_api_key", "change-me")
+    c = TestClient(app)
+    response = c.post(
+        "/dify/retrieval",
+        headers={"Authorization": "Bearer change-me"},
+        json={"query": "격리 승인권자"}
+    )
+    assert response.status_code == 503
