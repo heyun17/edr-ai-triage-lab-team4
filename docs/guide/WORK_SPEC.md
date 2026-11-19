@@ -84,6 +84,8 @@
 > |---|---|---|
 > | D3-1 | `soc-index-setup`·`soc-kb-ingest` Job Complete, PDF 9개 입력/KB 25청크 저장·확인 | 6-1 장애 주입·2인 진단 |
 > | D3-2 | GitHub Actions 테스트/빌드/GHCR push 성공, `752fccd` 배포 후 `cd273e8`로 롤백 | 7-1 깨진 이미지 장애 주입·2인 진단 |
+> | D3-5 | 조사 결과 `parent_name` 보존, 단위 테스트·CI 통과, 동일 12건 FakeLLM 정확도 10/12→12/12, 워커 이미지 `a8dc79a` 롤아웃 성공 | 교안의 2인 교차 리뷰·실제 LLM 일반화 |
+> | D3-6 | PDF 06 OCR 0→1청크(34요소), k3s OCR Job Complete, 별도 인덱스 26청크, 키워드 Recall@3 19/21→20/21 | 2인 원래 담당자 리뷰, 운영 KB 전환, Hybrid Recall 향상 |
 > | D3-8 | RAG 21문항 재평가: keyword 19/21, vector 18/21, hybrid 18/21 | Day3 에이전트 평가 재실행 |
 > | D3-9 | RAG 수치 해석과 미개선 원인·추후 과제 `DECISIONS.md`에 1인 기록 | 팀원 간 설명·질문 |
 > | D3-11 | `DEPLOYMENT.md`에 실제 실행 명령·결과 정리 | 옆 팀 교차 검증 |
