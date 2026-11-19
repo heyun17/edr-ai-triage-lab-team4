@@ -131,6 +131,30 @@ sudo k3s kubectl -n soc logs deployment/api --tail=50
 
 이전 장애 및 복구 절차: [RUNBOOK.md](RUNBOOK.md). PostgreSQL 비밀번호 불일치(3-2), 워커 중단(4-3), 강제 종료 후 체크포인트 복구(4-5), Ingress selector 오타(5-2)를 참고한다.
 
+## 9. Day3 추가 고도화와 안전한 장애 실습 (2026-11-19 후속 검증)
+
+### 조사 도구 고도화와 Worker 배포
+
+- `src/soc/telemetry/tools.py`에서 `parent_name`을 보존하여 정상 IT 업무 도구 맥락을 판정에 전달함.
+- 동일 가상 알림 12건의 격리 FakeLLM 평가 정확도: `10/12(0.833) → 12/12(1.000)`. 실제 LLM의 정확도와 혼동하지 않는다.
+- 앱 이미지 `ghcr.io/heyun17/edr-ai-triage-lab-team4:a8dc79a`를 Kubernetes `deployment/worker`에 적용하고 `rollout status` **successfully rolled out** 확인.
+- 서버 최종 상태: `api`, `generator`, `worker` 모두 **1/1**. API `/readyz`에서 `ready:true, opensearch:true, postgres:true` 확인.
+
+### OCR 고도화 실험 (운영 KB는 보존)
+
+- PDF 06 스캔본에 `ocr_only` 적용한 새 이미지 `...:kb-ocr-day3-20261119`(약 900MB) 빌드·SCP·k3s containerd import.
+- `infra/k8s/64-kb-ocr-job.yaml`로 **`INDEX_KB=kb-playbooks-ocr`** 인덱스 재생성·적재. `soc-kb-ocr-ingest Complete`(77초), 전체 청크 26개; 스캔 PDF 06 요소 34개·청크 1개.
+- `infra/k8s/65-rag-ocr-eval-job.yaml`로 동일 21문항 평가: 키워드 `19/21 → 20/21`, 벡터·기본 RRF는 `18/21` 유지.
+- `infra/k8s/66-rag-weight-experiment-job.yaml` 및 `67-rag-fusion-diagnostics-job.yaml`에서 가중치 탐색. 키워드 100:벡터 1은 `20/21`로 BM25 단독과 **동점**, 운영 기본 검색 로직 변경 안 함.
+- 원래 `kb-playbooks` 25개 청크와 운영 앱 `KB_TOOLS=mock`은 **변경하지 않았다**. 실험 인덱스 재실행은 `recreate=True`에 따라 기존 실험 인덱스를 초기화한다.
+
+### 격리된 인프라 고장 재현 및 복구
+
+- **6-1:** `68-opensearch-url-chaos-job.yaml`(잘못된 `opensearhc`)에서 연결 False/Job Failed 확인; `69-opensearch-url-recovery-job.yaml`에서 연결 True/Job Complete.
+- **7-1:** `70-rollout-chaos-safe.yaml`로 전용 정상 테스트 API 시작; `71-rollout-chaos-broken.yaml`의 의도적 종료 이미지로 새 파드 0/1 Error, 이전 파드 1/1 및 API 정상 응답 유지, `rollout undo` 성공.
+- 실습용 `deployment/soc-api-rollout-chaos`, `service/soc-api-rollout-chaos`는 실습 종료 후 **삭제 완료**.
+- 실패 Job은 실습 기록 목적으로 남을 수 있으나 운영 서비스와 인덱스의 장애를 뜻하지 않는다. 세부 재현 명령·출력은 [RUNBOOK.md](RUNBOOK.md) 참조.
+
 ## 검증·범위
 
 | 항목 | 현재 상태 |
@@ -140,4 +164,8 @@ sudo k3s kubectl -n soc logs deployment/api --tail=50
 | 서버 RAG 21문항 Recall@3 | 확인 |
 | 새로운 서버에서 문서만 보고 처음부터 설치 | **미검증** |
 | 옆 팀 교차 검증 | **미실시** |
-| 장애 주입 6-1·7-1, Dify 연동, 실서비스 RAG 에이전트 | **미실시/미검증** |
+| 6-1 OpenSearch URL 오타 + 정상 접속 복구 | **격리 Job으로 Failed → Complete 확인**, 운영 KB 보존 |
+| 7-1 즉시 종료 이미지 배포 + rollback | **격리 API Deployment에서 Error/구버전 유지/롤백 성공**; 운영 API 미변경 |
+| D3-5 `parent_name` Worker 고도화 | **12건 FakeLLM 평가 10/12 → 12/12**, `a8dc79a` 배포 및 정상 롤아웃 |
+| D3-6 OCR 실험 인덱스 | **26청크, 키워드 Recall@3 20/21**, 기본 RRF 18/21 유지; 운영 `kb-playbooks` 보존 |
+| Dify 연동, 실서비스 RAG 에이전트 | **미실시/미검증** |
