@@ -45,6 +45,14 @@ sudo k3s kubectl -n soc logs -f job/soc-dify-internal-smoke
 
 실제 앱의 `deployment/api`는 이전 이미지와 `KB_TOOLS=mock` 설정을 유지하므로, Dify와 연결하려면 **별도 제한된 API 서비스**를 만들어야 한다. 운영 API를 통째로 외부에 노출하면 보안 알림·승인 엔드포인트도 노출될 수 있어 `src/soc/api/dify_only.py`(retrieval + healthz만 노출)와 `infra/k8s/76-dify-kb-minimal.yaml`(비공개 ClusterIP, 전용 DIFY_API_KEY Secret)을 추가했다. Cloud Dify와 연결하려면 향후 사용자 허락하에 임시 HTTPS 접근을 설정한다.
 
+## Dify 전용 서비스의 실제 서버 배포 확인
+
+사용자가 k3s `soc`에 전용 64자 난수 Bearer Secret `soc-dify-key`를 생성했고, `infra/k8s/76-dify-kb-minimal.yaml`의 `deployment/soc-dify-kb` 및 `service/soc-dify-kb`가 생성됐다. `rollout status` 결과 **successfully rolled out**, 기존 운영 API Pod 내부의 `GET http://soc-dify-kb/healthz`는 **`{"status":"ok"}`**였다.
+
+**아직 확인할 것:** Secret의 실제 길이(64자)와 새 서비스의 미인증 POST 403 출력은 별도 검증이 필요하다. 이어서 Dify Cloud에서 외부 Knowledge API 저장 때 보내는 **빈 POST 검증 요청**을 처리하도록 `src/soc/api/dify.py`를 보강하고 회귀 테스트를 추가했다. 새 CI 이미지 반영 전 기존 `soc-dify-kb` Deployment는 그 수정을 포함하지 않는다.
+
+Dify Cloud에 연결하려면 외부 HTTPS 접근이 필요하다. 실습용 `infra/k8s/77-dify-https-tunnel-demo.yaml`은 **검색 전용 API**만 임시 공개하도록 준비됐으며, 외부 노출 위험과 사용자 계정 로그인 동작을 확인한 뒤에만 수동 적용한다.
+
 ## API 계약
 
 - 요청: `POST /dify/retrieval`
