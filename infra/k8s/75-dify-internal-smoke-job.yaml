@@ -1,0 +1,95 @@
+# Day3 DIFY-1: internal contract smoke with actual OpenSearch & OpenAI embeddings.
+# No publicly exposed Service, no permanent API key, no writes to KB.
+# App image 27bbe52 passed full GitHub Actions tests including test_dify.py.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-dify-internal-smoke
+  namespace: soc
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:27bbe52
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-c"]
+          args:
+            - |
+              """Verify Dify External Knowledge API against actual OCR OpenSearch index."""
+              import json
+              import secrets
+              from fastapi.testclient import TestClient
+              from soc.api.main import app
+              from soc.config import settings
+
+              # This credential exists in this single process only; never exposed by a Service.
+              token = secrets.token_urlsafe(32)
+              settings.dify_api_key = token
+              client = TestClient(app)
+              payload = {
+                  "knowledge_id": "kb-playbooks-ocr",
+                  "query": "호스트 네트워크 격리는 누가 승인해?",
+                  "retrieval_setting": {"top_k": 3, "score_threshold": 0.0},
+              }
+              denied = client.post("/dify/retrieval", json=payload)
+              print("Missing bearer token:", denied.status_code, flush=True)
+              assert denied.status_code == 403
+              r = client.post(
+                  "/dify/retrieval",
+                  json=payload,
+                  headers={"Authorization": "Bearer " + token},
+              )
+              print("Authorized retrieval HTTP status:", r.status_code, flush=True)
+              if r.status_code != 200:
+                  print(r.text, flush=True)
+              r.raise_for_status()
+              records = r.json()["records"]
+              assert 0 < len(records) <= 3
+              assert all(isinstance(row["content"], str) and row["content"] for row in records)
+              assert all(0 <= row["score"] <= 1 for row in records)
+              assert all(isinstance(row["metadata"], dict) for row in records)
+              print("Retrieved records:", len(records), flush=True)
+              for row in records:
+                  print(json.dumps({
+                      "title": row["title"],
+                      "score": row["score"],
+                      "source": row["metadata"].get("source"),
+                      "excerpt": row["content"][:100],
+                  }, ensure_ascii=False), flush=True)
+              print("DIFY BACKEND CONTRACT PASS (internal Job; NOT Dify Cloud UI)", flush=True)
+
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: KB_TOOLS
+              value: "real"
+            - name: INDEX_KB
+              value: "kb-playbooks-ocr"
+            - name: FAKE_LLM
+              value: "false"
+            - name: CHECKPOINTER
+              value: "memory"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
