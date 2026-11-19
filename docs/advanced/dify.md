@@ -15,10 +15,25 @@
 | `/dify/retrieval` External Knowledge API 계약 | **코드 구현** | `src/soc/api/dify.py` |
 | DIFY-1 점수 정규화 | **코드 구현** | 최대 점수를 1.0, 나머지를 비율에 따라 0~1로 변환 |
 | 인증 실패 403 및 성공 조회/임계치 테스트 | **단위·통합 테스트 작성** | `tests/test_dify.py` |
-| CI 필수 테스트 포함 | **반영** | `.github/workflows/build-ghcr.yml`, Dify 제외 옵션 제거 |
+| CI 필수 테스트 포함 | **성공 확인** | [Actions 성공 44479065202](https://github.com/heyun17/edr-ai-triage-lab-team4/actions/runs/44479065202), SHA `27bbe52`, 전체 테스트 포함 |
 | k3s 실제 OCR 인덱스를 통한 검색 | **별도 내부 스모크 테스트 예정** | `infra/k8s/75-dify-internal-smoke-job.yaml` |
 | Dify Cloud UI External Knowledge API 등록 | **미실시** | 사용자 로그인·안전한 HTTPS 엔드포인트 필요 |
 | Dify 앱 실제 질의·우리 에이전트 리포트 비교 | **미실시** | Dify UI 연결 완료 후 비교해야 함 |
+
+## 현재 사용 가능한 검증용 k3s Job
+
+`infra/k8s/75-dify-internal-smoke-job.yaml`은 CI에서 테스트를 통과한 앱 이미지 `27bbe52`를 이용한다. 실제 `kb-playbooks-ocr` OpenSearch 인덱스를 `KB_TOOLS=real`, `FAKE_LLM=false`로 검색하되, 공개 HTTP 서비스를 만들지 않는다.
+
+- 매 실행 시 프로세스 내 **임시 난수 키**를 생성해 미인증 요청은 `403`, 인증 요청은 `200`인지 확인.
+- `records` 개수·본문·0~1 점수·출처 메타데이터를 검사.
+- `OPENAI_API_KEY`는 기존 Kubernetes `soc-openai` Secret에서 읽는다. API 키 출력 금지.
+- 실제 Dify Cloud 계정과 연결한 것이 아니라 **우리 쪽 백엔드 계약 검증**이다.
+
+실행:
+```bash
+curl -fsSL https://raw.githubusercontent.com/heyun17/edr-ai-triage-lab-team4/main/infra/k8s/75-dify-internal-smoke-job.yaml | sudo k3s kubectl apply -f -
+sudo k3s kubectl -n soc logs -f job/soc-dify-internal-smoke
+```
 
 ## API 계약
 
