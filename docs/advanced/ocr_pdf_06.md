@@ -96,3 +96,20 @@
 - 성공 로그: `PATCH SUCCESS: production KB 25, OCR KB 26; one isolated chunk updated`. 운영 `kb-playbooks` 및 Kubernetes 운영 Deployment는 변경하지 않음.
 - **아직 미확인:** 수정된 임베딩으로 기존 21문항 Recall@3가 어떻게 변했는지. 후속 `infra/k8s/74-rag-ocr-direct-eval-job.yaml` 평가가 준비돼 있음.
 - **지속성 한계:** 이번 개선은 기존 컨테이너 내 소스 코드 전체에 반영된 새로운 적재 파이프라인이 아니라 **실험 인덱스의 1개 청크를 수동 갱신하는 Job**이다. 기존 `64-kb-ocr-job.yaml`을 재실행하면 `recreate=True`로 수정 내용이 사라질 수 있어, 정식 운영 적용을 주장할 수 없다.
+
+## 9. 최종 재평가 — 직접 OCR 텍스트 재임베딩 후 (검증 완료)
+
+`infra/k8s/74-rag-ocr-direct-eval-job.yaml`을 실행한 결과, 동일 21개 질문의 정답 문서 Recall@3는 다음과 같았다.
+
+| 방식 | 최초 운영 KB (25개) | Unstructured OCR 적용 (26개) | 직접 Tesseract 텍스트로 한 청크 갱신 (26개) |
+|---|---:|---:|---:|
+| 키워드 | 19/21 = 0.905 | 20/21 = 0.952 | **20/21 = 0.952** |
+| 벡터 | 18/21 = 0.857 | 18/21 = 0.857 | **19/21 = 0.905** |
+| 하이브리드(RRF 1:1) | 18/21 = 0.857 | 18/21 = 0.857 | **19/21 = 0.905** |
+
+- **k10은 Keyword·Vector·Hybrid 모두 성공**. 직접 OCR에서 `세 번`이 포함된 텍스트로 PDF06 청크 1개를 수정·재임베딩한 후 상위 3개 검색 결과에 해당 PDF가 포함됨.
+- `=== k10 OCR answer text in keyword Top3 ===` 체크에서 `('06_false_positive_guide_scanned.pdf', True)` 출력. **정답 문구가 검색된 텍스트에 실제 포함됨**을 추가 확인.
+- k13은 Keyword만 성공, k14는 모든 모드에서 실패. PDF09(k15~k21) 7/7 유지.
+- **비교 방법:** 원본 인덱스 `kb-playbooks`는 25개로 유지; 수정은 `kb-playbooks-ocr`의 PDF06 한 청크만 변경. 조회를 통해 각각 25개/26개 확인했고 Job은 `PATCH SUCCESS`를 출력함.
+- **한계:** 동일 21문항은 독립 검증셋이 아니다. k10은 정답 표현을 확인했지만 전체 21문항의 최종 생성 답변 정확도까지 측정한 것은 아니다. OCR은 일부 한글·영문을 계속 오인식한다.
+- **구현 지속성 주의:** 현재 개선된 OCR 텍스트와 임베딩은 **실험 인덱스에만 적용**됐다. 기존 `src/soc/kb/parse.py`의 Unstructured `ocr_only` 경로를 Tesseract PSM6 경로로 변경한 것은 아니다. `64-kb-ocr-job.yaml`을 재실행하면 `ensure_index(recreate=True)`로 임시 개선 결과가 사라진다. 운영 앱은 기존 설정 유지이며 실제 RAG 에이전트 통합은 미검증.
