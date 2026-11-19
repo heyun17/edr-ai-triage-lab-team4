@@ -35,5 +35,3 @@
 - 위 수치는 초기 배포를 위한 계획값이며 실제 사용량 측정값은 아니다.
 - 배포 후 kubectl top nodes, kubectl top pods로 사용량을 확인한다.
 - 메모리 부족이나 OOMKilled가 발생하면 requests/limits를 재조정한다.
-
-| **합계 / 여유** | | | | | |
