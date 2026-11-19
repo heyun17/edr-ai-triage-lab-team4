@@ -1,0 +1,87 @@
+# D3-1 / Infra Stage 6: PDF ingestion into OpenSearch.
+# Build Dockerfile.kb and import this exact image tag into the single k3s node first.
+# OPENAI_API_KEY must be stored as the soc-openai Kubernetes Secret; never commit credentials.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soc-kb-ingest
+  namespace: soc
+  labels:
+    app: soc-kb-ingest
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: soc-kb-ingest
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-opensearch
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:cd273e8
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+          command: ["python", "-c"]
+          args:
+            - |
+              import time
+              from soc.osclient import get_client
+              for attempt in range(60):
+                  try:
+                      if get_client().ping():
+                          print("OpenSearch ready")
+                          break
+                  except Exception as e:
+                      print(f"OpenSearch not ready: {e}")
+                  time.sleep(3)
+              else:
+                  raise SystemExit("OpenSearch did not become ready")
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+      containers:
+        - name: kb-ingest
+          image: ghcr.io/heyun17/edr-ai-triage-lab-team4:kb-day3-20261119
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "soc.kb.ingest"]
+          env:
+            - name: BACKEND
+              value: "real"
+            - name: OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: soc-config
+                  key: OPENSEARCH_URL
+            - name: FAKE_LLM
+              value: "false"
+            - name: EMBED_MODEL
+              value: "text-embedding-3-small"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: soc-openai
+                  key: OPENAI_API_KEY
+            - name: KB_PDF_DIR
+              value: "/app/data/kb/pdf"
+            - name: CHUNK_MAX_CHARACTERS
+              value: "800"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2500m"
+              memory: "6Gi"
