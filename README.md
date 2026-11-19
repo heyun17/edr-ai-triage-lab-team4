@@ -35,13 +35,3 @@
 | `docs/teachback/` | 매일 마지막 |
 | [`docs/PROGRESS_2026-11-17.md`](docs/PROGRESS_2026-11-17.md) | **팀4 Day1 완료 현황(11/17~18)·Day2 인계** |
 | `docs/advanced/` | 3일차: 고도화 기록 |
-
-## 최종 제출·검증 (팀4 / 2026-11-19)
-
-- [강사 확인용 Day1~Day3 최종 인계](docs/FINAL_HANDOFF_2026-11-19.md) — **실제 수행·미완료 구분, 측정 수치, 확인 근거, 보안 정리 사항**
-- [🔍 개인 노트: Day1~Day3 최종 정리](https://app.notion.com/p/41dbfc520588812da31cc9296640e430) — 학생 기록 담당의 개인 정리
-- [MSP 클라우드 운영 포트폴리오용 기술서](docs/PORTFOLIO_MSP_CLOUD_OPERATIONS.md) — Kubernetes·CI/CD·장애 대응 중심
-- [Day3 개인 티치백](docs/teachback/day3.md) — 팀원 상호 질의가 아닌 1인 발표 대비 자료
-- [Day3 결정·최종 점수](docs/DECISIONS.md), [Runbook](docs/RUNBOOK.md), [Deployment](docs/DEPLOYMENT.md)
-
-> 이 저장소의 실습 데이터는 가상 자료이며 고객 운영 환경이 아닙니다. Day3 고도화 2개와 격리 장애 실습은 개인 실습 범위에서 수행했고, Dify Cloud 연결·2인 종합 드릴·옆 팀 검증·팀 발표는 완료하지 않았습니다. 서버에 남은 임시 Dify 터널·키의 실제 제거 여부는 [최종 인계의 보안 점검](docs/FINAL_HANDOFF_2026-11-19.md)을 따로 확인해야 합니다.
